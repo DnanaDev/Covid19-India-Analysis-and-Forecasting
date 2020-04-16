@@ -12,8 +12,8 @@ Data starting from 30th January to the current day.
 
 import json
 from urllib.request import urlopen
-import matplotlib.pyplot as plt
 import pandas as pd
+import datetime
 
 
 # got the json data but it is not very readable
@@ -74,6 +74,13 @@ def make_dataframe():
 
     list_dates = list_cases_stat(data, 'date')
 
+    # Converting Dates to 'datetime'
+    new_date = []
+    for date in list_dates:
+        new_date.append(datetime.datetime.strptime(date + ' 2020', '%d %B %Y'))
+
+    list_dates = new_date
+
     dataframe = pd.DataFrame(index=list_dates, data=
     {'DailyConfirmed': daily_conf, 'DailyDeceased': daily_dec, 'DailyRecovered': daily_rec,
      'TotalConfirmed': total_conf, 'TotalDeceased': total_dec, 'TotalRecovered': total_rec})
@@ -81,3 +88,37 @@ def make_dataframe():
     dataframe.to_csv('COVID_India_Updated_from_API.csv', index=False)
 
     return dataframe
+
+
+def get_test_dataframe():
+    """Gets ICMR covid Testing samples data from datameet dataset.
+    Args:
+    Returns:
+    Dataframe with Date, Number of samples collected on that day.
+    """
+    path_testing = 'https://raw.githubusercontent.com/datameet/covid19/master/data/icmr_testing_status.json'
+
+    with urlopen(path_testing) as response:
+        # Reading this json data
+        source = response.read()
+        # converting this json to
+        data = json.loads(source)
+
+    stat_list = []
+    dates_list = []
+
+    # Parsing Dates and Number of Samples Collected on day.
+    for rows in data['rows']:
+        dates_list.append(rows['id'].split('T')[0])
+        stat_list.append(rows['value']['samples'])
+
+    testing_data = pd.DataFrame(index=dates_list, data={'Testing Samples': stat_list})
+
+    # Converting Date string to Datetime
+    dates = []
+    for date in testing_data.index.to_list():
+        dates.append(datetime.datetime.strptime(date, '%Y-%m-%d'))
+
+    testing_data.index = dates
+
+    return testing_data
