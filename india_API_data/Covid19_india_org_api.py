@@ -16,7 +16,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 
-
 # got the json data but it is not very readable
 # print(source)
 
@@ -75,10 +74,9 @@ def make_dataframe():
 
     list_dates = list_cases_stat(data, 'date')
 
-
-    dataframe = pd.DataFrame(
-        {'Date': list_dates, 'DailyConfirmed': daily_conf, 'DailyDeceased': daily_dec, 'DailyRecovered': daily_rec,
-         'TotalConfirmed': total_conf, 'TotalDeceased': total_dec, 'TotalRecovered': total_rec})
+    dataframe = pd.DataFrame(index=list_dates, data=
+    {'DailyConfirmed': daily_conf, 'DailyDeceased': daily_dec, 'DailyRecovered': daily_rec,
+     'TotalConfirmed': total_conf, 'TotalDeceased': total_dec, 'TotalRecovered': total_rec})
 
     dataframe.to_csv('COVID_India_Updated_from_API.csv', index=False)
 
