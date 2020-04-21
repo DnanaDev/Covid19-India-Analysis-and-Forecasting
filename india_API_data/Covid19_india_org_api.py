@@ -85,7 +85,7 @@ def make_dataframe():
     {'DailyConfirmed': daily_conf, 'DailyDeceased': daily_dec, 'DailyRecovered': daily_rec,
      'TotalConfirmed': total_conf, 'TotalDeceased': total_dec, 'TotalRecovered': total_rec})
 
-    dataframe.to_csv('COVID_India_Updated_from_API.csv', index=False)
+    dataframe.to_csv('COVID_India_Updated_from_API.csv')
 
     return dataframe
 
@@ -120,5 +120,6 @@ def get_test_dataframe():
         dates.append(datetime.datetime.strptime(date, '%Y-%m-%d'))
 
     testing_data.index = dates
+    testing_data.to_csv('COVID_India_Updated_Test_data.csv')
 
     return testing_data
