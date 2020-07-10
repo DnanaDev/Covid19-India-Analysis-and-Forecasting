@@ -7,6 +7,8 @@ data in the format of ['cases_time_series'] with objects for each day nested in 
 another key/object in it of the form ['statewise']
 
 Data starting from 30th January to the current day.
+### TO DO
+1. Other functions for statewise data etc.
 
 """
 
@@ -54,8 +56,8 @@ def list_cases_stat(json_obj, column):
     return stat_list_int
 
 
-def make_dataframe():
-    """"Makes Dataframe with parsed data and saves it as CSV and returns it.
+def make_dataframe(save=False):
+    """"Makes Dataframe with parsed data and and returns it with an option to save it as a CSV.
     Args:
     Returns:Dataframe. With Columns DailyConfirmed, DailyDeceased, DailyRecovered."""
 
@@ -85,7 +87,8 @@ def make_dataframe():
     {'DailyConfirmed': daily_conf, 'DailyDeceased': daily_dec, 'DailyRecovered': daily_rec,
      'TotalConfirmed': total_conf, 'TotalDeceased': total_dec, 'TotalRecovered': total_rec})
 
-    dataframe.to_csv('COVID_India_Updated_from_API.csv')
+    if save:
+        dataframe.to_csv('COVID_India_Updated_from_API.csv')
 
     return dataframe
 
@@ -120,6 +123,6 @@ def get_test_dataframe():
         dates.append(datetime.datetime.strptime(date, '%Y-%m-%d'))
 
     testing_data.index = dates
-    testing_data.to_csv('COVID_India_Updated_Test_data.csv')
+    # testing_data.to_csv('COVID_India_Updated_Test_data.csv')
 
     return testing_data

@@ -2,6 +2,8 @@
 Helper Functions to create and manage SQLITE Database for Covid19 Project.
 data_to_df(table_name, fetch_new = False) to fetch data from a table in the form of a Pandas DF.
 
+Run Directly to ingest data to default SQLite DB. Import and Use data_to_df to grab data from DB as a Pandas DF.
+
 Dependencies : india_API_data/Covid19_india_org_api.py for functions that fetch data from API.
 
 References :
@@ -76,7 +78,8 @@ def add_data_table(conn, tablename, df):
 def data_to_df(table_name, fetch_new=False):
     """ Returns the complete covid data from the table as a dataframe.
     If fetch_new = True, First fetches the data from API, updates Database and then returns DF.
-    If table doesn'terxist, creates one. Must be used with fetch_new = True to get data into new table.
+    Default table name 'covid'.
+    If table doesn't exist, creates one. Must be used with fetch_new = True to get data into new table.
     """
     # Create/load DB
     database = 'Data/covid_data.db'
