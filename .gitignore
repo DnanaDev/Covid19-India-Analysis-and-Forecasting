@@ -3,4 +3,10 @@
 
 # Ignore Resources Folder
 /Resources
-/Research
+/Research.DS_Store
+
+/.ipynb_checkpoints
+/.idea
+/__pycache__
+
+/india_API_data/__pycache__
