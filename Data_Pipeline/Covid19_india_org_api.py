@@ -58,6 +58,9 @@ Scraped Testing data from ICMR notices.
 Data starting - 2020-03-13.
 Multiple entries exist for particular dates.
 
+## TO DO
+1. Make pipeline suitable for GCS bucket and Google Cloud Function.
+
 **** All Data sources reachable and working as of - 20.07.20 ***
 """
 
@@ -117,9 +120,11 @@ def make_dataframe(save=False):
     dataframe = pd.DataFrame(index=list_dates, data=
     {'DailyConfirmed': daily_conf, 'DailyDeceased': daily_dec, 'DailyRecovered': daily_rec,
      'TotalConfirmed': total_conf, 'TotalDeceased': total_dec, 'TotalRecovered': total_rec})
+    # Renaming Index to be consistent with all other CSVs
+    dataframe.rename_axis(index = 'Date', inplace=True)
 
     if save:
-        dataframe.to_csv('COVID_India_National.csv')
+        dataframe.to_csv('../Data/Raw/COVID_India_National.csv')
 
     return dataframe
 
@@ -151,12 +156,12 @@ def make_state_dataframe(save=False):
     state_daily_data = state_daily_data.pivot(index='Date', columns='Status')
 
     if save:
-        state_daily_data.to_csv('COVID_India_State.csv')
+        state_daily_data.to_csv('../Data/Raw/COVID_India_State.csv')
 
     return state_daily_data
 
 
-def get_test_dataframe(save = False):
+def get_test_dataframe(save=False):
     """Gets ICMR Covid Testing samples data from Datameet dataset.
     Data starting - 2020-03-13. Has multiple entries for certain days.
     Args:
@@ -179,7 +184,7 @@ def get_test_dataframe(save = False):
         dates_list.append(rows['id'].split('T')[0])
         stat_list.append(rows['value']['samples'])
 
-    testing_data = pd.DataFrame(index=dates_list, data={'Testing Samples': stat_list})
+    testing_data = pd.DataFrame(index=dates_list, data={'TestingSamples': stat_list})
 
     # Converting Date string to Datetime
     dates = []
@@ -187,9 +192,11 @@ def get_test_dataframe(save = False):
         dates.append(datetime.datetime.strptime(date, '%Y-%m-%d'))
 
     testing_data.index = dates
+    # Renaming Index to be consistent with all other CSVs
+    testing_data.rename_axis(index='Date', inplace=True)
 
     if save:
-       testing_data.to_csv('COVID_India_Test_data.csv')
+        testing_data.to_csv('../Data/Raw/COVID_India_Test_data.csv')
 
     return testing_data
 
