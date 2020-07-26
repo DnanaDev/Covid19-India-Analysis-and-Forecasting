@@ -632,6 +632,7 @@ COPY public.testing_stats ("Date", "TestingSamples") FROM stdin;
 2020-07-22	14724546
 2020-07-23	15075369
 2020-07-24	15428170
+2020-07-25	15849068
 \.
 
 
