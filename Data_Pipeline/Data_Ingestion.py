@@ -2,7 +2,7 @@
 
 Using SQLAlchemy engine to interface to PostgresQL Database.
 Functions to create DB according to schema and for ingesting data.
-The use case is to run the script and automatically to update CSVs in Data/Raw and to
+The use case is to run the script and automatically update CSVs in Data/Raw and to
 store the cleaned data in the database. Backup of the database in stored in Data/cleaned.
 
 # Data Ingestion Functions
