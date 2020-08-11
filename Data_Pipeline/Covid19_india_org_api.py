@@ -5,20 +5,25 @@ Using Covid19india.org api to fetch daily confirmed, recovered, deceased case nu
 
 ## Getting Started
 Functions:
-1. make_dataframe()
+1. make_dataframe(save = False)
 Returns DataFrame with data parsed from source [1].
 National time-series with Daily/TotalConfirmed, Daily/TotalDeceased, Daily/TotalRecovered
 Data starting - 2020-01-30.
+Args : save - Path to save the cleaned CSV. Default False to not save file.
 
-2. make_state_dataframe()
+
+2. make_state_dataframe(save = False)
 Returns Multi-indexed DataFrame with data parsed from source [2].
+*Version 2* Returns Long CSV in place of Wide CSV - State is a column now.
 National and State wise time-series with DailyConfirmed, DailyDeceased, DailyRecovered
 Data starting - 2020-03-14.
+Args : save - Path to save the cleaned CSV. Default False to not save file.
 
-3. get_test_dataframe()
+3. get_test_dataframe(save = False)
 Returns DataFrame with data parsed from source [3].
 National Testing time-series. Multiple entries exist for particular dates.
 Data starting - 2020-03-13.
+Args : save - Path to save the cleaned CSV. Default False to not save file.
 
 ## Data Sources
 
@@ -93,6 +98,7 @@ def make_dataframe(save=False):
     """"Makes Dataframe with parsed data and and returns it with an option to save it as a CSV.
     Data starting - 2020-01-30.
     Args:
+    save: Path to save the cleaned CSV. Default False to not save file.
     Returns:Dataframe. With Columns DailyConfirmed, DailyDeceased, DailyRecovered."""
 
     # Fetching The JSON
@@ -124,7 +130,7 @@ def make_dataframe(save=False):
     dataframe.rename_axis(index = 'Date', inplace=True)
 
     if save:
-        dataframe.to_csv('../Data/Raw/COVID_India_National.csv')
+        dataframe.to_csv(save)
 
     return dataframe
 
@@ -133,8 +139,8 @@ def make_state_dataframe(save=False):
     """Returns Dataframe with parsed data for national and statewise cases timeseries.
     Optional to save CSV. Data starting - 2020-03-14.
     Args:
-    save: Saves the cleaned CSV.
-    Returns:Dataframe. With stacked Columns DailyConfirmed, DailyDeceased, DailyRecovered
+    save: Path to save the cleaned CSV. Default False to not save file.
+    Returns:Dataframe. With Columns State, DailyConfirmed, DailyDeceased, DailyRecovered
     for each state and Total - National time series.
     """
 
@@ -155,8 +161,21 @@ def make_state_dataframe(save=False):
     state_daily_data.Date = pd.to_datetime(state_daily_data.Date)
     state_daily_data = state_daily_data.pivot(index='Date', columns='Status')
 
+    # Melt stacked Column index Dataframe to long Dataframe
+    state_daily_data.reset_index(inplace=True)
+    state_daily_data = state_daily_data.melt(id_vars=['Date'])
+
+    # renaming orphan column with state data
+    state_daily_data.rename(axis=1, mapper={None: 'State'}, inplace=True)
+
+    # Pivoting to reshape Status column values(Recovered, Confirmed, Deceased Cases) to columns
+    state_daily_data = state_daily_data.pivot_table(index=['Date', 'State'], columns='Status', values='value')
+
+    # Reset index to replicate stacked index Date to Date column before setting as index.
+    state_daily_data = state_daily_data.reset_index().set_index('Date')
+
     if save:
-        state_daily_data.to_csv('../Data/Raw/COVID_India_State.csv')
+        state_daily_data.to_csv(save)
 
     return state_daily_data
 
@@ -165,6 +184,7 @@ def get_test_dataframe(save=False):
     """Gets ICMR Covid Testing samples data from Datameet dataset.
     Data starting - 2020-03-13. Has multiple entries for certain days.
     Args:
+    save: Path to save the cleaned CSV. Default False to not save file.
     Returns:
     DataFrame with Date, Number of samples collected on that day.
     """
@@ -196,13 +216,13 @@ def get_test_dataframe(save=False):
     testing_data.rename_axis(index='Date', inplace=True)
 
     if save:
-        testing_data.to_csv('../Data/Raw/COVID_India_Test_data.csv')
+        testing_data.to_csv(save)
 
     return testing_data
 
 
 if __name__ == '__main__':
     # When run directly, saves updated data from all three sources.
-    make_dataframe(save=True)
-    make_state_dataframe(save=True)
-    get_test_dataframe(save=True)
+    make_dataframe(save='../Data/Raw/COVID_India_National.csv')
+    make_state_dataframe(save='../Data/Raw/COVID_India_State.csv')
+    get_test_dataframe(save='../Data/Raw/COVID_India_Test_data.csv')
