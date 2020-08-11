@@ -6,7 +6,10 @@
 1. Analysis and Visualization [Notebook.](https://nbviewer.jupyter.org/github/DnanaDev/Covid19-India-Analysis-and-Forecasting/blob/master/COVID19_India_Analysis_Forecasting.ipynb)
 2. Data Scraping [Script.](india_API_data/Covid19_india_org_api.py)
 3. Kaggle Forecasting Week 1 Challenge [Notebook.](https://www.kaggle.com/andynath/covid-19-beginner-eda-random-forest-xgboost)<br>
-![Growth Factor](Backup/India_Growth_Factor.png)
+
+State Wise Analysis            |  Predictions/Forecast
+:-------------------------:|:-------------------------:
+![Delhi](Backup/state_stats.png)  |  ![Predictions](Backup/Predictions.png)
 
 ## Data Sources
 1. Daily Case Statistics: [covid19india.org API.](https://github.com/covid19india/api)
