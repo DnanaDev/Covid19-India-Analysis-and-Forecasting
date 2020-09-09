@@ -11,7 +11,7 @@ https://stackoverflow.com/questions/14431646/how-to-write-pandas-dataframe-to-sq
 https://stackoverflow.com/questions/39407254/how-to-set-the-primary-key-when-writing-a-pandas-dataframe-to-a-sqlite-database
 """
 
-from india_API_data.Covid19_india_org_api import get_test_dataframe, make_dataframe
+from .Covid19_india_org_api import get_test_dataframe, make_dataframe
 import pandas as pd
 import sqlite3
 from sqlite3 import OperationalError
@@ -103,7 +103,7 @@ def data_to_df(table_name, fetch_new=False):
 
 if __name__ == '__main__':
     # Create/load DB
-    database = 'Data/covid_data.db'
+    database = '../covid_data.db'
 
     # Open connection to DB
     conn = sqlite3.connect(database)

@@ -1,10 +1,13 @@
 import pandas as pd
 import numpy as np
 import plotly.express as px
+import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import json
 from urllib.request import urlopen
 import datetime
+from .predict import SigmoidCurveFit
+from sklearn.metrics import mean_absolute_error
 
 pd.options.plotting.backend = "plotly"
 
@@ -196,6 +199,16 @@ india_data_combined = india_data.join(india_test_series, how='left')
 # making copy for test data functions
 india_test = india_data_combined.copy()
 
+# Data for Forecasting Models
+
+# For Total Cases
+# output is the number of cumulative/total cases
+# Input - days since first reported case, 2020-01-30
+
+x_data = np.arange(len(india_data['TotalConfirmed']))
+
+y_data = india_data['TotalConfirmed'].values
+
 """ Functions for returning plots
 """
 
@@ -205,7 +218,7 @@ def log_epidemic_comp(china_cases_df):
     Uses kaggle data to return plots comparing sigmoid and china cases.
     """
     fig = make_subplots(rows=1, cols=2,
-                        subplot_titles=(r"$ \text{Simple Logistic Curve } (L=1, k=1, x_0=0) $",
+                        subplot_titles=(r"$ \text{Standard logistic sigmoid function} (L=1, k=1, x_0=0) $",
                                         "China cumulative Cases"),
                         vertical_spacing=.1)
 
@@ -246,7 +259,7 @@ def india_national(value='Daily Statistics'):
                                'DailyRecovered']].iloc[40:].plot(title=' Daily Trends: India')
         fig.update_layout(yaxis=dict(title='Number of Cases'),
                           xaxis=dict(title='Date'),
-                          legend_title_text='Statistics :', legend=dict(
+                          legend_title_text='', legend=dict(
                 orientation="h",
                 yanchor="bottom",
                 y=1.02,
@@ -259,24 +272,20 @@ def india_national(value='Daily Statistics'):
             title=' 7 Day Moving Average : India')
         fig.update_layout(yaxis=dict(title='Number of Cases'),
                           xaxis=dict(title='Date'),
-                          legend_title_text='Statistics :', legend=dict(
+                          legend_title_text='', legend=dict(
                 orientation="h",
                 yanchor="bottom",
                 y=1.02,
                 xanchor="right",
                 x=1
             ), margin=dict(t=20, b=5))
-    elif value == 'Relative Growth Ratio, Recovery, Death rate':
-
-       # Growth ratio - replace is not comparable, fishy
-        growth_ratio = (india_data.TotalConfirmed[45:] / india_data.TotalConfirmed[45:].shift(1) * 100).rolling(
-            window=7).mean().iloc[40:]
-        growth_ratio.rename(index='Growth Ratio 7-Day MA (%)', inplace=True)
-        fig = growth_ratio.plot(title='Day-Day Relative metrics')
+    elif value == 'Relative Recovery, Death rate':
 
         # adding death rate and recovery rate.
+
         recovery_rate = india_data[45:]['DailyRecovered'] / india_data[45:]['DailyConfirmed']
         recovery_rate = recovery_rate.rolling(window=7).mean()
+        fig = go.Figure(layout=dict(title='Relative Metrics'))
         fig.add_scatter(y=recovery_rate[40:].values * 100,
                         x=recovery_rate[40:].index.to_list(), mode='lines',
                         name=f'Recovery Rate 7-Day MA (%)',
@@ -291,9 +300,9 @@ def india_national(value='Daily Statistics'):
                         line=dict(
                             color="purple", ), )
 
-        fig.update_layout(yaxis=dict(title='%'),
+        fig.update_layout(yaxis=dict(title='Percentage (%) of Confirmed Cases'),
                           xaxis=dict(title='Date'),
-                          legend_title_text='Statistics :', legend=dict(
+                          legend_title_text='', legend=dict(
                 orientation="h",
                 yanchor="bottom",
                 y=1.02,
@@ -306,46 +315,70 @@ def india_national(value='Daily Statistics'):
                                'TotalRecovered']].iloc[40:].plot(title=' Cumulative Trend: India')
         fig.update_layout(yaxis=dict(title='Number of Cases'),
                           xaxis=dict(title='Date'),
-                          legend_title_text="Statistics :", legend=dict(orientation="h",
-                                                                        yanchor="bottom",
-                                                                        y=1.02, xanchor="right", x=1),
+                          legend_title_text="", legend=dict(orientation="h",
+                                                            yanchor="bottom",
+                                                            y=1.02, xanchor="right", x=1),
                           margin=dict(t=20, b=5),
                           )
 
     return fig
 
 
-def india_test_plot(value='daily_test'):
+def india_test_plot(value='Daily Testing and Cases'):
     """
     Plots the test graphs acc. to input from radio button.
     """
-    if value == 'daily_test':
-        fig_test = india_test[['TestingSamples']].iloc[40:].diff(
-            1).plot(title=' Daily Testing Trends: India')
-        fig_test.update_layout(yaxis=dict(title='Number of Samples Tested'),
-                               legend_title_text='No. of Testing Samples Collected per day by ICMR :',
-                               legend=dict(orientation="h",
-                                           yanchor="bottom",
-                                           y=1.02, xanchor="right", x=1),
+    # diff because cumulative test given, we want daily number of tests
+    india_test_diff = india_test[['TestingSamples', 'TotalConfirmed']].iloc[40:].diff(1)
+    india_test_diff.rename(columns={'TotalConfirmed': 'DailyConfirmed'}, inplace=True)
+
+    if value == 'Daily Testing and Cases':
+
+        fig_test = india_test_diff[50:].plot(title='Daily Testing and '
+                                                   'New Cases')
+        fig_test.update_layout(yaxis=dict(title='# of Test Samples Collected, Total Confirmed Cases '),
+                               legend_title_text='', legend=dict(orientation="h",
+                                                                 yanchor="bottom",
+                                                                 y=1.02, xanchor="right", x=1),
                                margin=dict(t=10, b=10))
 
-    if value == 'daily_test_case':
-        fig_test = india_test[['TestingSamples', 'TotalConfirmed']].iloc[40:].diff(
-            1).plot(title=' Daily Testing and New Cases : India')
-        fig_test.update_layout(yaxis=dict(title='Number of Samples Tested, Total Confirmed Cases '),
-                               legend_title_text='Daily Stats :', legend=dict(orientation="h",
-                                                                              yanchor="bottom",
-                                                                              y=1.02, xanchor="right", x=1),
+    elif value == 'Moving Average':
+        india_test_diff = india_test_diff.rolling(window=7).mean()
+
+        fig_test = india_test_diff[50:].plot(title='Daily Testing and '
+                                                   'New Cases 7-Day MA')
+        fig_test.update_layout(yaxis=dict(title='# of Test Samples Collected, Total Confirmed Cases'),
+                               legend_title_text='', legend=dict(orientation="h",
+                                                                 yanchor="bottom",
+                                                                 y=1.02, xanchor="right", x=1),
                                margin=dict(t=10, b=10))
-    if value == 'daily_test_case_log':
-        fig_test = india_test[['TestingSamples', 'TotalConfirmed']].iloc[40:].diff(
-            1).plot(title=' Daily Testing and New Cases(Log) : India')
-        fig_test.update_layout(yaxis=dict(title='Number of Samples Tested, Total Confirmed Cases '),
-                               legend_title_text='Daily Stats :', yaxis_type="log", legend=dict(orientation="h",
-                                                                                                yanchor="bottom",
-                                                                                                y=1.02, xanchor="right",
-                                                                                                x=1),
+    elif value == 'Relative Metrics':
+        # NO of sample tested and not people, not a fair comparison. Multiple entries per day, keeping last.
+
+        #  positive rate - no of test returning positive.
+        india_test_diff = india_test_diff.rolling(window=7).mean()
+        positive_rate = india_test_diff['DailyConfirmed'] / india_test_diff['TestingSamples'] * 100
+        positive_rate.rename(index='Positive Rate (%) 7-Day MA', inplace=True)
+
+        fig_test = positive_rate[50:].plot(title='Relative Metrics for Testing')
+
+        fig_test.update_layout(yaxis=dict(title='Percentage (%) of Test Samples, Tests/1000 people'),
+                               legend_title_text='', legend=dict(orientation="h",
+                                                                 yanchor="bottom",
+                                                                 y=1.02, xanchor="right", x=1),
                                margin=dict(t=10, b=10))
+        # tests per 1000 people.
+        # 1,380,004 - thousands partitions
+        test_per_thou = india_test_diff['TestingSamples'] / 1380004
+        test_per_thou.rename(index='Tests per thousand people', inplace=True)
+
+        fig_test.add_scatter(y=test_per_thou[50:].values,
+                             x=test_per_thou[50:].index.to_list(), mode='lines',
+                             name=f'Tests per thousand people 7-Day MA',
+                             line=dict(
+                                 color="purple", ), )
+
+    fig_test.update_layout(xaxis=dict(title='Date'))
 
     return fig_test
 
@@ -491,5 +524,63 @@ def state_plots(state_series, state_name):
     # figure specs.
     fig.update_layout(height=700, showlegend=True,
                       title_text=f"{state_name} Statistics")
+
+    return fig
+
+
+def forecast_curve_fit():
+    # dict to store eval metrics
+    score = {}
+
+    # splitting into train and test(last 30 days) without shuffling.
+    index = 30
+    x_train = x_data[:-index]
+    x_test = x_data[-index:]
+    y_train = y_data[:-index]
+    y_test = y_data[-index:]
+
+    # Instantiating and fitting logistic function
+    sigmoid = SigmoidCurveFit()
+    sigmoid.fit(x_train.reshape(-1, 1), y_train)
+
+    score['R^2'] = sigmoid.score(x_test, y_test)
+    score['MAE'] = mean_absolute_error(y_test, sigmoid.predict(x_test))
+    score['params'] = sigmoid.get_sigmoid_params()
+
+    # make everything other than every 5th value nan
+    df = india_data.copy()
+    df['TotalConfirmed'][~df.index.isin(df[::5].index)] = np.nan
+
+    # preds for only test set
+    preds_test = sigmoid.predict(x_test.reshape(-1, 1))
+
+    # predict for entire input
+    preds = sigmoid.predict(x_data.reshape(-1, 1))
+
+    # figure for train-valid fit
+
+    fig = make_subplots(rows=1, cols=2,
+                        subplot_titles=(r"$ \text{Standard logistic sigmoid function} (L=1, k=1, x_0=0) $",
+                                        "China cumulative Cases"),
+                        vertical_spacing=.1)
+
+    fig_1 = df['TotalConfirmed'].plot(title='Logistic Curve fit to Cumulative Cases', kind='scatter')
+    fig.append_trace(fig_1['data'][0], 1, 1)
+
+    fig.add_scatter(x=df.index, y=preds.ravel())
+    fig.update_layout(shapes=[
+        dict(
+            type='line',
+            yref='paper', y0=0, y1=1,
+            xref='x', x0=df.index[-30], x1=df.index[-30]
+        )
+    ])
+    # second figure
+
+    fig_2 = px.line(x=x_test[1:], y=np.diff(y_test, n=1), title='Actual Cases')
+    fig_2.add_scatter(x=x_test[1:], y=np.diff(preds_test.ravel(), n=1), mode='lines')
+
+    fig.append_trace(fig_2['data'][0], 1, 2)
+    fig.append_trace(fig_2['data'][1], 1, 2)
 
     return fig

@@ -13,7 +13,7 @@ import pandas as pd
 # import functions and data from helper function
 
 from utils.Dashboard_helper import india_national, log_epidemic_comp, country_df, india_test_plot, \
-    national_growth_factor, make_state_dataframe, sharpest_inc_state, state_plots
+    national_growth_factor, make_state_dataframe, sharpest_inc_state, state_plots,forecast_curve_fit
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css',
                         'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.18.1/styles/monokai-sublime.min.css']
@@ -76,7 +76,7 @@ app.layout = html.Div([
     # header
     html.Div([html.P(['''An analysis of the current pandemic across the country. The first section can be 
     used as a dashboard to track the epidemic. The second section focuses on some mathematical and epidemiological metrics
-     of the spread of the virus.''', html.Br(), html.B('Note : '),
+     of the spread of the virus and attempts to forecast it.''', html.Br(), html.B('Note : '),
                       '''An attempt has been made to forecast the spread of the virus 
                   using traditional forecasting and machine learning models, however these results are to be taken with a grain of 
                   salt as the authors are not epidemiologists. The statistics and metrics update daily and the analysis was performed in the first week of 
@@ -93,7 +93,7 @@ app.layout = html.Div([
         html.Div([dcc.Dropdown(id='nat-graph-selector',
                                options=[{'label': i, 'value': i} for i in ['Daily Statistics', 'Cumulative Statistics',
                                                                            'Weekly Moving Average',
-                                                                           'Relative Growth Ratio, Recovery, Death rate']],
+                                                                           'Relative Recovery, Death rate']],
                                value='Daily Statistics', style={'width': '50%', 'display': 'inline-block',
                                                                 'align-items': 'left', 'justify-content': 'center',
                                                                 'margin-left': '10px', 'margin-right': '15px'}),
@@ -108,47 +108,58 @@ app.layout = html.Div([
                                                                  'align-items': 'center', 'justify-content': 'center',
                                                                  'margin-left': '30px', 'margin-right': '15px'}
                   )]),
-        html.P(["""As of the first week of September the number of Daily confirmed cases has reached almost 100K cases a 
-               day and the total number of cases has crossed 4 million.""", html.Br(), """ There is a weekly seasonal 
+        html.P([""" There is a weekly seasonal 
                pattern to the number of new cases reported which can be smoothed by taking a 7-day moving average. 
                Another thing to note is that by the end of August the number of recoveries a day had almost caught 
-               up to the number of new cases before another wave of cases in September.""", html.Br(), """Looking at the 
-               third graph, the death rate also appears to be much lower than the worldwide rate of 4% and 
-               has not grown at the pace of the new reported cases or the recovery rate."""],
-               style={'textAlign': 'left', 'margin-top': '25px', 'margin-left': '15px',
+               up to the number of new cases before another wave of cases in September. The relative increase of confirmed cases, 
+               recoveries, deaths can be better visualised by viewing the graphs on the log scale.""", html.Br(), """Looking at the 
+               Relative recovery and death rate graph, the death rate appears to be much lower than the worldwide rate of 
+               4% and has not grown at the same pace as the recovery rate. A spike can be seen in the recovery rate in mid-late
+               May after the discharge policy was change."""],
+               style={'textAlign': 'left', 'margin-top': '10px', 'margin-left': '15px',
                       'margin-right': '15px'}),
     ]),
 
     # Div - Testing Analysis
     html.Div(children=[
-        html.H4(children='Testing Trends', style={'textAlign': 'left', 'margin-top': '25px', 'margin-left': '15px',
-                                                  'margin-right': '15px'}),
+        html.H4(children='Testing Statistics', style={'textAlign': 'left', 'margin-top': '25px', 'margin-left': '15px',
+                                                      'margin-right': '15px'}),
         dcc.Graph(
             id='testing-national'),
 
-        html.Div([dcc.RadioItems(
-            options=[
-                {'label': 'Daily Testing', 'value': 'daily_test'},
-                {'label': 'Daily Testing vs Daily Cases', 'value': 'daily_test_case'},
-                {'label': 'Daily Testing vs Daily Cases(Log)', 'value': 'daily_test_case_log'},
-            ],
-            value='daily_test',
-            labelStyle={'display': 'inline-block', 'margin': 'auto'},
-            id='radio-national-test-selector'
-        )
-        ], style={'width': '100%', 'display': 'flex', 'align-items': 'center', 'justify-content': 'center'}),
-        html.P("""The comparison of the graphs of the amount of Testing Done and the confirmed Cases each day can be a 
-        good indicator of whether enough testing is being done. If the curves are very close together it can indicate 
-        that not enough people are getting tested. Visualising the Daily confirmed cases and Testing Samples collected 
-        on a semi-log graph shows that the number of confirmed cases per day is just in pace with the Testing Rate. 
-        Also judging by the sharp increase in samples collected around April, we can say that testing is finally being
-         done on a large enough scale. Also observe the weekly seasonality in testing samples 
-        collected.""", style={'margin-left': '15px', 'margin-right': '15px'}),
+        html.Div([dcc.Dropdown(id='Testing-graph-drop',
+                               options=[{'label': i, 'value': i} for i in
+                                        ['Daily Testing and Cases', 'Moving Average',
+                                         'Relative Metrics']],
+                               value='Daily Testing and Cases', style={'width': '50%', 'display': 'inline-block',
+                                                                       'align-items': 'left',
+                                                                       'justify-content': 'center',
+                                                                       'margin-left': '10px', 'margin-right': '15px'}),
+                  dcc.RadioItems(
+                      options=[
+                          {'label': 'Linear', 'value': 'linear'},
+                          {'label': 'Log', 'value': 'log'},
+                      ],
+                      value='linear',
+                      labelStyle={'display': 'inline-block', 'margin': 'auto'},
+                      id='radio-national-test-scale', style={'width': '50%', 'display': 'inline-block',
+                                                             'align-items': 'center', 'justify-content': 'center',
+                                                             'margin-left': '30px', 'margin-right': '15px'}
+                  )]),
+        html.P(["""The Seasonality in the data seems to be due to a decrease in the collection of Testing Samples on
+        the weekends. Another important thing to note is that ICMR releases the number of Testing Samples collected and 
+        not the number of individuals tested. There is also a problem of data consistency as on certain days multiple bulletins are
+        issued. Only the last numbers have been kept in such cases.""", html.Br(), """A substantial increase in the number
+         of Testing Samples collected can be seen from the middle of July. Looking at the relative metrics, the positive 
+         rate can be used to determine whether enough tests are being done and has seen a decline since the increase in 
+         testing. The tests per 1000 people is useful for tracking the penetration of the testing relative to the population.
+        """], style={'textAlign': 'left', 'margin-top': '10px', 'margin-left': '15px',
+                     'margin-right': '15px'}),
 
     ]),
 
     # Modelling state-wise statistics
-    html.Div([html.H4(children='State-Wise Statistics : Which states are handling the Virus well ?',
+    html.Div([html.H4(children='State-Wise Statistics ',
                       style={'textAlign': 'left',
                              'margin-top': '15px',
                              'margin-left': '15px',
@@ -160,38 +171,58 @@ app.layout = html.Div([
               ),
               dcc.Graph(
                   id='state-stats'),
-              ]),
+              html.P(["""Data and metrics for states, drop-down list sorted by the the total number of new cases in the
+              last week. The Growth Factor or daily Growth rate is a metric for the exponential growth of a pandemic and 
+              the details are discussed later.""", html.Br(), """Observe that some states like Delhi show clear evidence
+              of a second wave of cases."""]),
+              ], style={'textAlign': 'left', 'margin-top': '10px', 'margin-left': '15px',
+                        'margin-right': '15px'}),
 
     # Div - Modelling Cumulative Growth as a logistic function
     html.Div(children=[
-        html.H4(children='Modeling Epidemic Growth : Logistic or Sigmoid curve', style={'textAlign': 'left',
-                                                                                        'margin-top': '25px',
-                                                                                        'margin-left': '15px',
-                                                                                        'margin-right': '15px'}),
-        html.P([""" Epidemics are observed to follow a logistic curve. The no. of infected rises 
-            exponentially and reaches an inflection point before gradually decreasing. Logistic functions have applications in
-            ecological modelling, medicine and especially in statistics and machine learning. The logistic function is 
-                defined as :  \\begin{gather} f{(x)} = \\frac{L}{1 + e^{-k(x - x_0)}} \end{gather} $ \\text{Where, } x_0 = x\\text{ is the value of the sigmoids midpoint, } L =\\text{the curve's maximum value. and, } k =\\text{the logistic growth rate or steepness of the curve}$"""
-                   , html.Br(), """ This can be seen somewhat in the case of China as shown in the figure below, but it is not reasonable to 
-                assume that all countries will follow a similar trajectory, there may be multiple waves of exponential growth
-                 or the steepness of the curve may differ. However, comparing to the cases 
-                in India it can be seen that the initial exponential growth seems to have slowed down. The next important 
-                milestone is whether the inflection point has been reached.
-                """], style={'margin-left': '15px', 'margin-right': '15px'}),
+        html.H4(children='Modeling Epidemic Growth : Logistic curve', style={'textAlign': 'left',
+                                                                             'margin-top': '25px',
+                                                                             'margin-left': '15px',
+                                                                             'margin-right': '15px'}),
+        html.P(["""The Logistic function is an example of a sigmoid curve and was devised as a model of population 
+        growth. Epidemic growth is also observed to follow a logistic curve where the number of infected rises 
+        exponentially and reaches a linear inflection point before gradually decreasing. Logistic functions have 
+        applications in ecological modelling, medicine and especially in statistics and machine learning.""",
+                """The logistic function is defined as :  \\begin{gather} f{(x)} = \\frac{L}{1 + e^{-k(x - x_0)}} \end{gather}
+        $ \\text{Where, } x_0 = x\\text{ is the value of the sigmoids midpoint, } L =\\text{the curve's maximum value. and, } k =\\text{the logistic growth rate or steepness of the curve}$ """
+                   , html.Br(), html.Br(), """A logistic curve can be observed in the case of China, but it is not 
+                   reasonable to assume that all countries will follow similar trajectories, there may be multiple 
+                   waves of exponential growth or the steepness of the curve may differ. Looking at the cumulative 
+                   cases in India the next important tasks are determining whether the initial exponential growth has 
+                   slowed down and whether the inflection point of the pandemic has been reached."""],
+               style={'margin-left': '15px', 'margin-right': '15px'}),
         dcc.Graph(
             id='sigmoid-china',
             figure=fig_china
         ),
+        html.P([html.B("Fitting a Logistic curve to forecast cases"), html.Br(), """It is possible to fit a logistic 
+        curve to the data and estimate the parameters to get a crude forecast for the curve of the virus.""", html.Br(),
+                """Using only the 'days since first case' as a dependent variable and SciPy's optimise module we can use 
+        non-linear least squares to fit a general logistic function and estimate the parameters :""", html.Br(), """L = 
+        the maximum value of the curve or approximately or the total number of cumulative cases of of the virus.""",
+                html.Br(),
+                """x0 = the mid-point of the sigmoid or the approx date the inflection point of the virus growth is 
+                reached.""", html.Br(), """Model performance is checked by using a validation set of the last 30 days 
+                with $R^2$ and MSE as metrics. Since, this is time-series data and the predictors are not 
+                independent, the data was not shuffled before being split into train-validation sets."""],
+               style={'margin-left': '15px', 'margin-right': '15px'}),
         html.Label(
             ['References : ', html.A('[1] 3Blue1Brown', href='https://www.youtube.com/watch?v=Kas0tIxDvrg'), html.Br(),
              html.A('[2] Journal of Medical Academics', href='https://www.maa.org/book/export/html/115630')],
             style={'margin-left': '15px', 'margin-right': '15px'}
-        )
+        ),
+        dcc.Graph(
+            id='fit-logistic', ),
     ]),
 
     # Modelling growth factor/rate of virus.
     html.Div(children=[
-        html.H4(children='Growth Factor Of Epidemic : Finding the Inflection Point', style={'textAlign': 'left',
+        html.H4(children='Growth Factor of Epidemic : Finding the Inflection Point', style={'textAlign': 'left',
                                                                                             'margin-top': '15px',
                                                                                             'margin-left': '15px',
                                                                                             'margin-right': '15px'}),
@@ -236,20 +267,25 @@ app.layout = html.Div([
     [Output('national-stats', 'figure'),
      Output('testing-national', 'figure'),
      Output('national-growth-factor', 'figure'),
-     Output('state-stats', 'figure')],
+     Output('state-stats', 'figure'),
+     Output('fit-logistic', 'figure')],
     [Input('nat-graph-selector', 'value'),
      Input('radio-national-scale-selector', 'value'),
-     Input('radio-national-test-selector', 'value'),
+     Input('Testing-graph-drop', 'value'),
+     Input('radio-national-test-scale', 'value'),
      Input('radio-growth-factor-selector', 'value'),
      Input('states-xaxis-column', 'value')],
 )
-def fetch_national_plot(value, value_scale, value_test, value_gf, value_state):
+def fetch_plots(value, value_scale, value_test, value_test_scale, value_gf, value_state):
     # national stats
     figure = india_national(value)
     if value_scale == 'log':
         figure.update_layout(yaxis_type="log")
+
     # Test stats
     figure_test = india_test_plot(value_test)
+    if value_test_scale == 'log':
+        figure_test.update_layout(yaxis_type="log")
 
     # growth factor
     figure_gf, min_val, max_val, start, stop = national_growth_factor(value_gf)
@@ -262,7 +298,10 @@ def fetch_national_plot(value, value_scale, value_test, value_gf, value_state):
     if value_state is None:
         value_state = states[0]
     figure_state = state_plots(state_data[value_state], value_state)
-    return figure, figure_test, figure_gf, figure_state
+
+    # forecast for losistic curve fit
+    figure_log_curve = forecast_curve_fit()
+    return figure, figure_test, figure_gf, figure_state, figure_log_curve
 
 
 if __name__ == '__main__':
