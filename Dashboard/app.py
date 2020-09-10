@@ -13,7 +13,7 @@ import pandas as pd
 # import functions and data from helper function
 
 from utils.Dashboard_helper import india_national, log_epidemic_comp, country_df, india_test_plot, \
-    national_growth_factor, make_state_dataframe, sharpest_inc_state, state_plots,forecast_curve_fit
+    national_growth_factor, make_state_dataframe, sharpest_inc_state, state_plots, forecast_curve_fit
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css',
                         'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.18.1/styles/monokai-sublime.min.css']
@@ -208,16 +208,19 @@ app.layout = html.Div([
                 html.Br(),
                 """x0 = the mid-point of the sigmoid or the approx date the inflection point of the virus growth is 
                 reached.""", html.Br(), """Model performance is checked by using a validation set of the last 30 days 
-                with $R^2$ and MSE as metrics. Since, this is time-series data and the predictors are not 
+                with $R^2$ and MAE as metrics. Since, this is time-series data and the predictors are not 
                 independent, the data was not shuffled before being split into train-validation sets."""],
-               style={'margin-left': '15px', 'margin-right': '15px'}),
+               style={'margin-left': '15px', 'margin-right': '15px', 'margin-bottom': '5px'}),
+        # Actual plot with the foercast
+        dcc.Graph(
+            id='fit-logistic', ),
+        html.P(id='fit-logistic-stats',
+               style={'margin-left': '15px', 'margin-right': '15px', 'margin-bottom': '5px'}),
         html.Label(
             ['References : ', html.A('[1] 3Blue1Brown', href='https://www.youtube.com/watch?v=Kas0tIxDvrg'), html.Br(),
              html.A('[2] Journal of Medical Academics', href='https://www.maa.org/book/export/html/115630')],
             style={'margin-left': '15px', 'margin-right': '15px'}
         ),
-        dcc.Graph(
-            id='fit-logistic', ),
     ]),
 
     # Modelling growth factor/rate of virus.
@@ -268,7 +271,8 @@ app.layout = html.Div([
      Output('testing-national', 'figure'),
      Output('national-growth-factor', 'figure'),
      Output('state-stats', 'figure'),
-     Output('fit-logistic', 'figure')],
+     Output('fit-logistic', 'figure'),
+     Output('fit-logistic-stats', 'children')],
     [Input('nat-graph-selector', 'value'),
      Input('radio-national-scale-selector', 'value'),
      Input('Testing-graph-drop', 'value'),
@@ -299,9 +303,19 @@ def fetch_plots(value, value_scale, value_test, value_test_scale, value_gf, valu
         value_state = states[0]
     figure_state = state_plots(state_data[value_state], value_state)
 
-    # forecast for losistic curve fit
-    figure_log_curve = forecast_curve_fit()
-    return figure, figure_test, figure_gf, figure_state, figure_log_curve
+    # forecast for logistic curve fit
+    figure_log_curve, score_sigmoid_fit = forecast_curve_fit()
+    # text with validation metrics for logistic curve
+    log_fit_text = """The logistic curve seems to fit the general trend of the growth. For the validation set the """, \
+                   html.B('R^2 is {:.4f}.'.format(score_sigmoid_fit['R^2'])), """ The """, \
+                   html.B('Mean Absolute Error of {} '.format(int(score_sigmoid_fit['MAE']))), """ should show a less 
+                   optimistic result as a simple logistic curve fit will not be able to account for seasonality or 
+                   complex interactions. The results serves as a baseline for future models.""", html.Br(),"""
+                   Using the fit parameters of the function, it can be estimated that the Max Number of cases
+                   or Peak of the curve will be {} cases. The Inflection point of the growth will be reached at 
+                   {} days since the 1st of Jan.""".format(int(score_sigmoid_fit['params']['L']),
+                                                           int(score_sigmoid_fit['params']['x0']))
+    return figure, figure_test, figure_gf, figure_state, figure_log_curve, log_fit_text
 
 
 if __name__ == '__main__':

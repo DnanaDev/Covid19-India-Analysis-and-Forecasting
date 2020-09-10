@@ -560,27 +560,66 @@ def forecast_curve_fit():
     # figure for train-valid fit
 
     fig = make_subplots(rows=1, cols=2,
-                        subplot_titles=(r"$ \text{Standard logistic sigmoid function} (L=1, k=1, x_0=0) $",
-                                        "China cumulative Cases"),
-                        vertical_spacing=.1)
+                        subplot_titles=("Logistic function fit to Cumulative Cases",
+                                        "Validation Set Predictions for Daily Cases"),
+                        column_widths=[0.6, 0.4],
+                        horizontal_spacing=0.08)
 
-    fig_1 = df['TotalConfirmed'].plot(title='Logistic Curve fit to Cumulative Cases', kind='scatter')
+    fig_1 = df.rename(columns={'TotalConfirmed': 'ActualCases'})['ActualCases'].plot(kind='scatter')
+
+    fig_1.update_traces(
+        line=dict(dash="dot", width=10)
+    )
+
     fig.append_trace(fig_1['data'][0], 1, 1)
 
-    fig.add_scatter(x=df.index, y=preds.ravel())
+    fig.update_traces(marker=dict(color="#636EFA"),
+                      row=1, col=1)
+
+    fig.add_scatter(x=df.index, y=preds.ravel(),
+                    name='Fit Line',
+                    line=dict(
+                        color="#EF553B",
+                        width=2),
+                    marker=dict(
+                        opacity=0.4)
+                    )
+
+    # second figure - index is 29 days as 1 day differenced away
+
+    fig_2 = px.line(x=india_data.index[-29:], y=np.diff(y_test, n=1), title="ActualCases")
+    fig_2.add_scatter(x=india_data.index[-29:], y=np.diff(preds_test.ravel(), n=1), mode='lines',
+                      name='Predicted Cases',
+                      line=dict(
+                          color="#EF553B"),
+                      )
+    fig_2['data'][1].showlegend = False
+    fig.append_trace(fig_2['data'][0], 1, 2)
+    fig.append_trace(fig_2['data'][1], 1, 2)
+
     fig.update_layout(shapes=[
         dict(
             type='line',
             yref='paper', y0=0, y1=1,
             xref='x', x0=df.index[-30], x1=df.index[-30]
         )
-    ])
-    # second figure
+    ], legend=dict(
+        orientation="h",
+        yanchor="bottom",
+        y=1.05,
+        xanchor="right",
+        x=1
+    ), legend_title_text='',
+        margin=dict(
+            b=15,
+            t=5,
+            l=50,
+            r=50,
+            pad=1
+        ),
+    )
+    # Axis Titles
+    fig.update_yaxes(title_text="Cases", row=1, col=1)
+    fig.update_yaxes(title_text="Cases", row=1, col=2)
 
-    fig_2 = px.line(x=x_test[1:], y=np.diff(y_test, n=1), title='Actual Cases')
-    fig_2.add_scatter(x=x_test[1:], y=np.diff(preds_test.ravel(), n=1), mode='lines')
-
-    fig.append_trace(fig_2['data'][0], 1, 2)
-    fig.append_trace(fig_2['data'][1], 1, 2)
-
-    return fig
+    return fig, score
