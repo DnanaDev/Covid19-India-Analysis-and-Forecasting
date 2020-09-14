@@ -211,7 +211,7 @@ app.layout = html.Div([
                 with $R^2$ and MAE as metrics. Since, this is time-series data and the predictors are not 
                 independent, the data was not shuffled before being split into train-validation sets."""],
                style={'margin-left': '15px', 'margin-right': '15px', 'margin-bottom': '5px'}),
-        # Actual plot with the foercast
+        # Actual plot with the forecast
         dcc.Graph(
             id='fit-logistic', ),
         html.P(id='fit-logistic-stats',
@@ -236,13 +236,7 @@ app.layout = html.Div([
         1. A value of greater than 1 signifies exponential growth.""", html.Br(), """ 
         2. A value of Less than 1 signifies decline.""", html.Br(), """
         3. A growth factor of 1 is the inflection point and signifies the point where the growth of the epidemic is no longer exponential."""
-                   , html.Br(), html.Br(), """ As of the end of August, it can be seen that the growth factor of the last 30 days is much lower 
-                   than the mean growth factor upto this point indicating that the initial exponential growth might have slowed down.
-                   A weekly seasonal component can be seen in the growth factor and confirmed cases which can again be due to the seasonal testing pattern.
-                   Taking a weekly moving average to remove the effect of the seasonal component shows that the growth factor
-                   still hasn't reached the inflection point and worryingly there seems to be a second wave of growth as indicated 
-                   by the growth factor of the previous week being higher than the growth factor of the last 30 days.
-                    """],
+                ],
                style={'margin-left': '15px', 'margin-right': '15px'}),
         dcc.Graph(
             id='national-growth-factor'),
@@ -255,7 +249,20 @@ app.layout = html.Div([
             value='daily',
             labelStyle={'display': 'inline-block', 'margin': 'auto'},
             id='radio-growth-factor-selector'
-        )], style={'width': '100%', 'display': 'flex', 'align-items': 'center', 'justify-content': 'center'}),
+        )], style={'width': '100%', 'display': 'flex', 'align-items': 'center', 'justify-content': 'center',
+                   'margin-bottom': '15px'}),
+
+        html.P([""" As of the first week of September, it can be seen that the growth factor of the last 30 days is much lower 
+                   than the mean growth factor upto this point indicating that the initial exponential growth might have slowed down.
+                   A weekly seasonal component can be seen in the growth factor and confirmed cases which can again be due to the seasonal testing pattern.
+                   Taking a weekly moving average to remove the effect of the seasonal component shows that the growth factor
+                   still hasn't reached the inflection point and worryingly there seems to be a second wave of growth as indicated 
+                   by the growth factor of the previous week being higher than the growth factor of the last 30 days.
+                    """, html.Br(), html.B('Forecasting Growth Factor'), html.Br(),
+                """ The Growth Factor can be predicted using time-series forecasting methods like SARIMA
+                    or other regression methods. The transformation is however destructive and cannot be used to directly 
+                    estimate the number of cases or cumulative cases. 
+                    """], style={'margin-left': '15px', 'margin-right': '15px'})
 
     ]),
 
@@ -310,7 +317,7 @@ def fetch_plots(value, value_scale, value_test, value_test_scale, value_gf, valu
                    html.B('R^2 is {:.4f}.'.format(score_sigmoid_fit['R^2'])), """ The """, \
                    html.B('Mean Absolute Error of {} '.format(int(score_sigmoid_fit['MAE']))), """ should show a less 
                    optimistic result as a simple logistic curve fit will not be able to account for seasonality or 
-                   complex interactions. The results serves as a baseline for future models.""", html.Br(),"""
+                   complex interactions. The results serves as a baseline for future models.""", html.Br(), """
                    Using the fit parameters of the function, it can be estimated that the Max Number of cases
                    or Peak of the curve will be {} cases. The Inflection point of the growth will be reached at 
                    {} days since the 1st of Jan.""".format(int(score_sigmoid_fit['params']['L']),
@@ -319,4 +326,4 @@ def fetch_plots(value, value_scale, value_test, value_test_scale, value_gf, valu
 
 
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run_server(host='0.0.0.0', port=8080, debug=True)
