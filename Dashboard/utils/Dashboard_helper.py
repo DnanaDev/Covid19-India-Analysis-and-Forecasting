@@ -6,7 +6,7 @@ from plotly.subplots import make_subplots
 import json
 from urllib.request import urlopen
 import datetime
-from .predict import SigmoidCurveFit
+from .predict import SigmoidCurveFit, growth_factor_features, PredictGrowthFactor
 from sklearn.metrics import mean_absolute_error
 
 pd.options.plotting.backend = "plotly"
@@ -392,7 +392,8 @@ def national_growth_factor(value='daily'):
     min_val = india_growth_factor[-30:].min()
     start = india_growth_factor.index[-30]
     stop = india_growth_factor.index[-1]
-    if value == 'daily' or 'comp':
+
+    if value == 'Daily Growth Factor' or 'Comparison of Growth Factor':
         # overall growth factor
         fig = india_growth_factor.plot(
             title='India Growth Factor Since 2020-03-11 (Widespread Testing) ')
@@ -442,7 +443,7 @@ def national_growth_factor(value='daily'):
             ))
         fig.update_yaxes(title_text="Growth Factor")
         fig.update_xaxes(title_text="Date")
-    if value == 'moving':
+    if value == 'Growth Factor Weekly Moving Average':
         x_ma = india_growth_factor[2:].rolling(window=7).mean()[6:]
         fig = x_ma.plot(title='India Weekly Moving Average Growth Factor Since 2020-03-11 (Widespread Testing) ')
         # Updating legend location
@@ -523,7 +524,13 @@ def state_plots(state_series, state_name):
 
     # figure specs.
     fig.update_layout(height=700, showlegend=True,
-                      title_text=f"{state_name} Statistics")
+                      title_text=f"{state_name} Statistics", legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=-0.1,
+            xanchor="right",
+            x=1
+        ))
 
     return fig
 
@@ -623,3 +630,37 @@ def forecast_curve_fit():
     fig.update_yaxes(title_text="Cases", row=1, col=2)
 
     return fig, score
+
+
+def forecast_growth_factor():
+    # Creating growth factor features
+    confirmed = india_data.TotalConfirmed[41:]
+    india_growth_factor = growth_factor(confirmed)
+    feat_df = india_growth_factor.iloc[2:].copy()
+    feat_df = feat_df.to_frame(name='Growth_Factor')
+    data = growth_factor_features(feat_df)
+
+    # drop first 6 na values in lag of GF
+    data.dropna(inplace=True)
+
+    # validation set approach - No shuffle time sries data. Last 30 days removed
+    z = 30
+    x_train = data.drop(['Growth_Factor'], axis=1)[:-z]
+    x_test = data.drop(['Growth_Factor'], axis=1)[-z:]
+    y_train = data['Growth_Factor'][:-z]
+    y_test = data['Growth_Factor'][-z:]
+
+    # Create Object of SuperPredictor Regression and get predictions
+    estimators = PredictGrowthFactor()
+    estimators.fit(x_train, y_train)
+
+    # dictionary of results
+    preds = estimators.predict(x_test)
+
+    temp = pd.DataFrame(index=x_test.index, data=y_test)
+    fig = temp.plot()
+    fig.add_scatter(x=x_test.index, y=preds['lin_reg'], name='Linear Regression')
+    fig.add_scatter(x=x_test.index, y=preds['last_month_mean'], name='Mean Last Month')
+    fig.add_scatter(x=x_test.index, y=preds['ridge_reg_deg_2'], name='Ridge Regression')
+
+    return fig, preds
