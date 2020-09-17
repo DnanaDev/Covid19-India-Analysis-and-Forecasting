@@ -9,12 +9,13 @@ import dash_html_components as html
 from dash.dependencies import Input, Output
 import dash_defer_js_import as dji
 import pandas as pd
+import numpy as np
 
 # import functions and data from helper function
 
 from utils.Dashboard_helper import india_national, log_epidemic_comp, country_df, india_test_plot, \
-    national_growth_factor, make_state_dataframe, sharpest_inc_state, state_plots, forecast_curve_fit,\
-    forecast_growth_factor
+    national_growth_factor, make_state_dataframe, sharpest_inc_state, state_plots, forecast_curve_fit, \
+    forecast_growth_factor, fetch_data
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css',
                         'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.18.1/styles/monokai-sublime.min.css']
@@ -54,20 +55,43 @@ app.index_string = '''
 axis_latex_script = dji.Import(src="https://codepen.io/yueyericardo/pen/pojyvgZ.js")
 mathjax_script = dji.Import(src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_SVG")
 
-""" Data sources
+""" Data sources, Wrangling
 """
 
+### Fetching Data ###
 kaggle_snap_worldwide = pd.read_csv('utils/Data/kaggle_train.csv')
 kaggle_snap_worldwide.rename(columns={'Country_Region': 'Country/Region',
                                       'Province_State': 'Province/State'}, inplace=True)
-china_cases, china_fatal = country_df('China', kaggle_snap_worldwide)
-fig_china = log_epidemic_comp(china_cases)
 
-fig_growth_factor = national_growth_factor()
+india_data, india_test_series = fetch_data()
 
 state_data = make_state_dataframe()
 
+### wrangling Data ###
+china_cases, china_fatal = country_df('China', kaggle_snap_worldwide)
+
 states = sharpest_inc_state(state_data)
+
+india_data_combined = india_data.join(india_test_series, how='left')
+
+# making copy for test data functions
+india_test = india_data_combined.copy()
+
+# Data for Forecasting Models
+
+# For Total Cases
+# output is the number of cumulative/total cases
+# Input - days since first reported case, 2020-01-30
+
+x_data = np.arange(len(india_data['TotalConfirmed']))
+
+y_data = india_data['TotalConfirmed'].values
+
+### Figures ###
+
+fig_china = log_epidemic_comp(china_cases)
+
+fig_growth_factor = national_growth_factor(india_data)
 
 """ App layout
 """
@@ -297,17 +321,17 @@ app.layout = html.Div([
 )
 def fetch_plots(value, value_scale, value_test, value_test_scale, value_gf, value_state):
     # national stats
-    figure = india_national(value)
+    figure = india_national(india_data, value)
     if value_scale == 'log':
         figure.update_layout(yaxis_type="log")
 
     # Test stats
-    figure_test = india_test_plot(value_test)
+    figure_test = india_test_plot(india_test, value_test)
     if value_test_scale == 'log':
         figure_test.update_layout(yaxis_type="log")
 
     # growth factor
-    figure_gf, min_val, max_val, start, stop = national_growth_factor(value_gf)
+    figure_gf, min_val, max_val, start, stop = national_growth_factor(india_data, value_gf)
     # re-animate for growth factor comparison
     if value_gf == 'Comparison of Growth Factor':
         figure_gf.update_layout(yaxis_range=[min_val - 0.2, max_val + 0.2], xaxis_range=[start, stop])
@@ -319,7 +343,7 @@ def fetch_plots(value, value_scale, value_test, value_test_scale, value_gf, valu
     figure_state = state_plots(state_data[value_state], value_state)
 
     # forecast for logistic curve fit
-    figure_log_curve, score_sigmoid_fit = forecast_curve_fit()
+    figure_log_curve, score_sigmoid_fit = forecast_curve_fit(india_data, x_data, y_data)
     # text with validation metrics for logistic curve
     log_fit_text = """The logistic curve seems to fit the general trend of the growth. For the validation set the """, \
                    html.B('R^2 is {:.4f}.'.format(score_sigmoid_fit['R^2'])), """ The """, \
@@ -332,10 +356,10 @@ def fetch_plots(value, value_scale, value_test, value_test_scale, value_gf, valu
                                                             int(score_sigmoid_fit['params']['x0']))
 
     # forecasts for growth factor
-    figure_forecast_gf, score_gf_fit = forecast_growth_factor()
+    figure_forecast_gf, score_gf_fit = forecast_growth_factor(india_data)
 
     return figure, figure_test, figure_gf, figure_state, figure_log_curve, log_fit_text, figure_forecast_gf
 
 
 if __name__ == '__main__':
-    app.run_server(host='0.0.0.0', port=8080, debug=True)
+    app.run_server(host='localhost', port=8080, debug=True)

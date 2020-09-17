@@ -1,3 +1,4 @@
+"""Dashboard Helper Module"""
 import pandas as pd
 import numpy as np
 import plotly.express as px
@@ -186,28 +187,16 @@ def sharpest_inc_state(data):
 """ Loading Data from Different Sources
 """
 
+
 # fetching data from sqlite db - replace with web versions for deployment with backup CSVs if request times out.
 
-india_data = make_dataframe()
+def fetch_data():
+    india_data = make_dataframe()
 
-india_test_series = get_test_dataframe()
+    india_test_series = get_test_dataframe()
 
-india_data_combined = india_data.join(india_test_series, how='left')
+    return india_data, india_test_series
 
-# Keep backup sources if requests fail.
-
-# making copy for test data functions
-india_test = india_data_combined.copy()
-
-# Data for Forecasting Models
-
-# For Total Cases
-# output is the number of cumulative/total cases
-# Input - days since first reported case, 2020-01-30
-
-x_data = np.arange(len(india_data['TotalConfirmed']))
-
-y_data = india_data['TotalConfirmed'].values
 
 """ Functions for returning plots
 """
@@ -250,7 +239,7 @@ def log_epidemic_comp(china_cases_df):
     return fig
 
 
-def india_national(value='Daily Statistics'):
+def india_national(india_data, value='Daily Statistics'):
     """
     For returning apt plot to Dash app according to radio button.
     """
@@ -324,7 +313,7 @@ def india_national(value='Daily Statistics'):
     return fig
 
 
-def india_test_plot(value='Daily Testing and Cases'):
+def india_test_plot(india_test, value='Daily Testing and Cases'):
     """
     Plots the test graphs acc. to input from radio button.
     """
@@ -383,7 +372,7 @@ def india_test_plot(value='Daily Testing and Cases'):
     return fig_test
 
 
-def national_growth_factor(value='daily'):
+def national_growth_factor(india_data, value='daily'):
     confirmed = india_data.TotalConfirmed[41:]
     india_growth_factor = growth_factor(confirmed)
     india_growth_factor.rename(index='Growth Factor', inplace=True)
@@ -535,7 +524,7 @@ def state_plots(state_series, state_name):
     return fig
 
 
-def forecast_curve_fit():
+def forecast_curve_fit(india_data, x_data, y_data):
     # dict to store eval metrics
     score = {}
 
@@ -632,7 +621,7 @@ def forecast_curve_fit():
     return fig, score
 
 
-def forecast_growth_factor():
+def forecast_growth_factor(india_data):
     # Creating growth factor features
     confirmed = india_data.TotalConfirmed[41:]
     india_growth_factor = growth_factor(confirmed)
