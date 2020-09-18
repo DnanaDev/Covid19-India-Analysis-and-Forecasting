@@ -3,6 +3,7 @@ All the machine learning, statistical models for the Covid Forecasting Dashboard
 """
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.utils.validation import check_X_y, check_is_fitted
+from sklearn.exceptions import NotFittedError
 from sklearn.linear_model import LinearRegression, Ridge
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 from sklearn.pipeline import Pipeline
@@ -10,6 +11,11 @@ import numpy as np
 
 # curve fit function from scipy.optimize to fit a function using nonlinear least squares.
 from scipy.optimize import curve_fit
+
+# Time series functions
+
+from statsmodels.tsa import stattools
+from statsmodels.tsa.statespace.sarimax import SARIMAX
 
 """ Sigmoid Fitting Functions
 """
@@ -112,3 +118,48 @@ class PredictGrowthFactor():
         self.results['last_month_mean'] = np.repeat(self.mean, len(X))
 
         return self.results
+
+
+class TimeSeriesGrowthFactor():
+    """Sklearn Regression wrapper for SARIMA(1, 1, 1)x(0, 1, 1, 7) model used for predicting Growth Factor.
+    Runs ADF test for the transformation and if significant only then does it allow a model to be fit.
+    Else Error out.
+    """
+
+    def __init__(self):  # SARIMAX try with inheriting SARIMAX
+        # Private Attribute To check if time-series is stationary and fitted.
+        self.__valid = None
+
+    def fit(self, ts):
+        self.Y = ts
+
+        # taking moving average to remove seasonality.
+        self.__Y = self.Y.rolling(window=7).mean()[6:]
+        # removing trend
+        self.__Y = self.__Y.diff(periods=1)[1:]
+        # performing ADF test
+        self.adf_results = stattools.adfuller(self.__Y, maxlag=None, autolag='AIC')
+
+        # check if p-value is less than 0.05 to reject presence of unit root
+        # then fit model.
+        if self.adf_results[1] > 0.05:
+            self.__valid = 0
+            raise NotFittedError(
+                'Can\'t Fit estimator. Time-Series likely not stationary with current SARIMA parameters')
+
+        # setup and fit model if we don't error out.
+        self.model = SARIMAX(self.Y, trend='n', order=(1, 1, 1), seasonal_order=(0, 1, 1, 7))
+
+        # change status for stationary and fit.
+        self.__valid = 1
+
+        # result wrapper with all params and summary visible.
+        self.res_model = self.model.fit()
+
+    def predict(self, X_start, X_end):
+        """Pass in number of days since(X_start) and to(X_end) for which forecast is required.
+        """
+        if self.__valid is None:
+            raise NotFittedError("Estimator instance is not fitted yet. Call 'fit'")
+
+        return self.res_model.predict(start=X_start, end=X_end)

@@ -7,7 +7,7 @@ from plotly.subplots import make_subplots
 import json
 from urllib.request import urlopen
 import datetime
-from .predict import SigmoidCurveFit, growth_factor_features, PredictGrowthFactor
+from .predict import SigmoidCurveFit, growth_factor_features, PredictGrowthFactor, TimeSeriesGrowthFactor
 from sklearn.metrics import mean_absolute_error
 
 pd.options.plotting.backend = "plotly"
@@ -646,10 +646,55 @@ def forecast_growth_factor(india_data):
     # dictionary of results
     preds = estimators.predict(x_test)
 
+    # Create instance of Time-series Predictor and add Predictions to dict.
+    model = TimeSeriesGrowthFactor()
+    model.fit(y_train)
+
+    preds['SARIMAX'] = model.predict(X_start=len(x_train), X_end=len(x_train) + len(x_test))[:-1].to_numpy()
+
+    # Figures for different predictors.
     temp = pd.DataFrame(index=x_test.index, data=y_test)
-    fig = temp.plot()
-    fig.add_scatter(x=x_test.index, y=preds['lin_reg'], name='Linear Regression')
-    fig.add_scatter(x=x_test.index, y=preds['last_month_mean'], name='Mean Last Month')
-    fig.add_scatter(x=x_test.index, y=preds['ridge_reg_deg_2'], name='Ridge Regression')
+    fig = temp.plot(title="Forecasting Growth Factor", labels=dict(index="", value="Growth Factor"))
+    fig.update_traces(line=dict(width=4))
+    fig.add_scatter(x=x_test.index, y=preds['lin_reg'], name='Linear Regression',
+                    line=dict(
+                        color="crimson",
+                        dash="dashdot",
+                    ))
+    fig.add_scatter(x=x_test.index, y=preds['last_month_mean'], name='Mean Last Month',
+                    line=dict(
+                        color="lightseagreen",
+                        width=2,
+                    )
+                    )
+    fig.add_scatter(x=x_test.index, y=preds['ridge_reg_deg_2'], name='Ridge Regression',
+                    line=dict(
+                        color="DarkViolet",
+                        dash="dashdot",
+                    )
+                    )
+
+    fig.add_scatter(x=x_test.index, y=preds['SARIMAX'], name='SARIMAX',
+                    line=dict(
+                        color="black",
+                        dash="dashdot",
+                    )
+                    )
+
+    fig.update_layout(legend=dict(
+        orientation="h",
+        yanchor="bottom",
+        y=1,
+        xanchor="right",
+        x=1
+    ), legend_title_text='',
+        margin=dict(
+            b=15,
+            t=30,
+            l=50,
+            r=50,
+            pad=1
+        ),
+    )
 
     return fig, preds

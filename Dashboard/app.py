@@ -17,8 +17,7 @@ from utils.Dashboard_helper import india_national, log_epidemic_comp, country_df
     national_growth_factor, make_state_dataframe, sharpest_inc_state, state_plots, forecast_curve_fit, \
     forecast_growth_factor, fetch_data
 
-external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css',
-                        'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.18.1/styles/monokai-sublime.min.css']
+external_stylesheets = ['https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.18.1/styles/monokai-sublime.min.css']
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
@@ -242,7 +241,7 @@ app.layout = html.Div([
         html.P(id='fit-logistic-stats',
                style={'margin-top': '10px', 'margin-left': '25px', 'margin-right': '25px', 'textAlign': 'justify',
                       'margin-bottom': '5px'}),
-        html.Label(
+        html.P(
             ['References : ', html.A('[1] 3Blue1Brown', href='https://www.youtube.com/watch?v=Kas0tIxDvrg'), html.Br(),
              html.A('[2] Journal of Medical Academics', href='https://www.maa.org/book/export/html/115630')],
             style={'margin-left': '25px', 'margin-right': '25px'}
@@ -296,6 +295,9 @@ app.layout = html.Div([
         dcc.Graph(id='forecast-growth-factor'),
 
     ]),
+
+    ### TO DO - TABLE WITH COMPARISON OF RESULTS ###
+
 
     ###### important for latex ######
     axis_latex_script,
@@ -362,4 +364,4 @@ def fetch_plots(value, value_scale, value_test, value_test_scale, value_gf, valu
 
 
 if __name__ == '__main__':
-    app.run_server(host='localhost', port=8080, debug=True)
+    app.run_server(host='0.0.0.0', port=8080, debug=True)
