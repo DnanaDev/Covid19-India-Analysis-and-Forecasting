@@ -95,6 +95,7 @@ class PredictGrowthFactor():
         # initialising models
         self.lin_reg = LinearRegression()
         # poly reg - regularisation hyper-parameter alpha hardcoded from manual hyp. optim.
+        # Since ridge regression applies penalty, feature scaling is required. Thus standardised data.
         self.pipe_gf = Pipeline([('poly', PolynomialFeatures(degree=2)),
                                  ('scale', StandardScaler()), ('ridge', Ridge(alpha=21))])
 
@@ -113,9 +114,9 @@ class PredictGrowthFactor():
         # dictionary for results.
         self.results = {}
         # storing predictions
-        self.results['lin_reg'] = self.lin_reg.predict(X)
-        self.results['ridge_reg_deg_2'] = self.pipe_gf.predict(X)
-        self.results['last_month_mean'] = np.repeat(self.mean, len(X))
+        self.results['Linear_Regression'] = self.lin_reg.predict(X)
+        self.results['Ridge_Regression'] = self.pipe_gf.predict(X)
+        self.results['Last_Month_Mean'] = np.repeat(self.mean, len(X))
 
         return self.results
 
@@ -154,7 +155,7 @@ class TimeSeriesGrowthFactor():
         self.__valid = 1
 
         # result wrapper with all params and summary visible.
-        self.res_model = self.model.fit()
+        self.res_model = self.model.fit(disp=0)
 
     def predict(self, X_start, X_end):
         """Pass in number of days since(X_start) and to(X_end) for which forecast is required.

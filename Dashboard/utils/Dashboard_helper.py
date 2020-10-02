@@ -8,7 +8,13 @@ import json
 from urllib.request import urlopen
 import datetime
 from .predict import SigmoidCurveFit, growth_factor_features, PredictGrowthFactor, TimeSeriesGrowthFactor
-from sklearn.metrics import mean_absolute_error
+from sklearn.metrics import mean_absolute_error, r2_score
+
+# Suppressing statsmodels warnings
+import warnings
+from statsmodels.tools.sm_exceptions import ValueWarning
+
+warnings.simplefilter('ignore', ValueWarning)
 
 pd.options.plotting.backend = "plotly"
 
@@ -385,7 +391,7 @@ def national_growth_factor(india_data, value='daily'):
     if value == 'Daily Growth Factor' or 'Comparison of Growth Factor':
         # overall growth factor
         fig = india_growth_factor.plot(
-            title='India Growth Factor Since 2020-03-11 (Widespread Testing) ')
+            title='India : Growth Factor Since Widespread Testing ')
 
         # mean growth Factor
         fig.add_scatter(y=[india_growth_factor.mean(), india_growth_factor.mean()],
@@ -650,31 +656,44 @@ def forecast_growth_factor(india_data):
     model = TimeSeriesGrowthFactor()
     model.fit(y_train)
 
-    preds['SARIMAX'] = model.predict(X_start=len(x_train), X_end=len(x_train) + len(x_test))[:-1].to_numpy()
+    preds['SARIMA'] = model.predict(X_start=len(x_train), X_end=len(x_train) + len(x_test))[:-1].to_numpy()
+
+    # Evaluation metrics for the models
+    eval_metrics = []
+    # Appending Model names - Harcoded./ find better way to change this.
+    for res in preds.keys():
+        scores = {}
+        scores['Model'] = res
+        scores['R^2'] = round(r2_score(y_test, preds[res]), 4)
+        scores['MAE'] = round(mean_absolute_error(y_test, preds[res]), 4)
+
+        eval_metrics.append(scores)
 
     # Figures for different predictors.
     temp = pd.DataFrame(index=x_test.index, data=y_test)
-    fig = temp.plot(title="Forecasting Growth Factor", labels=dict(index="", value="Growth Factor"))
+    fig = temp.plot(title="Growth Factor Forecast on Validation Set", labels=dict(index="", value="Growth Factor"))
+    # fig.update_xaxes(visible=True, showticklabels=True)
     fig.update_traces(line=dict(width=4))
-    fig.add_scatter(x=x_test.index, y=preds['lin_reg'], name='Linear Regression',
+
+    fig.add_scatter(x=x_test.index, y=preds['Linear_Regression'], name='Linear Regression',
                     line=dict(
                         color="crimson",
                         dash="dashdot",
                     ))
-    fig.add_scatter(x=x_test.index, y=preds['last_month_mean'], name='Mean Last Month',
+    fig.add_scatter(x=x_test.index, y=preds['Last_Month_Mean'], name='Mean Last Month',
                     line=dict(
                         color="lightseagreen",
                         width=2,
                     )
                     )
-    fig.add_scatter(x=x_test.index, y=preds['ridge_reg_deg_2'], name='Ridge Regression',
+    fig.add_scatter(x=x_test.index, y=preds['Ridge_Regression'], name='Ridge Regression',
                     line=dict(
                         color="DarkViolet",
                         dash="dashdot",
                     )
                     )
 
-    fig.add_scatter(x=x_test.index, y=preds['SARIMAX'], name='SARIMAX',
+    fig.add_scatter(x=x_test.index, y=preds['SARIMA'], name='SARIMA',
                     line=dict(
                         color="black",
                         dash="dashdot",
@@ -689,12 +708,39 @@ def forecast_growth_factor(india_data):
         x=1
     ), legend_title_text='',
         margin=dict(
-            b=15,
-            t=30,
+            b=0,
+            t=40,
             l=50,
             r=50,
             pad=1
         ),
     )
 
-    return fig, preds
+    return fig, preds, eval_metrics
+
+
+def india_growth_ratio(india_data):
+    growth_ratio_india = india_data.TotalConfirmed[41:] / india_data.TotalConfirmed[41:].shift(1)
+    growth_ratio_india = growth_ratio_india.to_frame(name='Growth_Ratio')
+    mean_growth_ratio = growth_ratio_india['Growth_Ratio'].mean()
+
+    fig = growth_ratio_india.plot(title="India: Growth Ratio", labels=dict(index=" ", value="Growth Ratio"))
+    fig.update_layout(legend=dict(
+        orientation="h",
+        yanchor="bottom",
+        y=1.02,
+        xanchor="right",
+        x=1
+    ), legend_title_text='',
+        margin=dict(
+            b=20,
+            t=20,
+            pad=.1
+        ))
+    fig.update_xaxes(title_text="Date")
+
+    fig.add_scatter(y=[mean_growth_ratio, mean_growth_ratio],
+                    x=[growth_ratio_india.index.min(), growth_ratio_india.index.max()], mode='lines',
+                    name=f'Mean Growth Ratio : {round(mean_growth_ratio, 3)}')
+
+    return fig
