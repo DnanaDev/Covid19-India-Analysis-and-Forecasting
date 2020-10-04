@@ -7,8 +7,12 @@ from plotly.subplots import make_subplots
 import json
 from urllib.request import urlopen
 import datetime
-from .predict import SigmoidCurveFit, growth_factor_features, PredictGrowthFactor, TimeSeriesGrowthFactor
+from .predict import SigmoidCurveFit, growth_factor_features, PredictGrowthFactor, TimeSeriesGrowthFactor,\
+    GrowthRatioFeatures, perf_adf, train_test_split_gr
 from sklearn.metrics import mean_absolute_error, r2_score
+from sklearn.pipeline import Pipeline
+from sklearn.linear_model import PoissonRegressor,GammaRegressor, LinearRegression
+from sklearn.preprocessing import PolynomialFeatures,StandardScaler
 
 # Suppressing statsmodels warnings
 import warnings
@@ -744,3 +748,138 @@ def india_growth_ratio(india_data):
                     name=f'Mean Growth Ratio : {round(mean_growth_ratio, 3)}')
 
     return fig
+
+
+def forecast_growth_ratio(india_data):
+    # Creating Growth Ratio Features using class.
+    trf = GrowthRatioFeatures(num_lagged_feats=7, num_diff_feats=1, date_feats=True, glm_bounds=True)
+
+    ### DATA - FOR REGRESSION MODELS
+    x, y = trf.transform(india_data.TotalConfirmed[41:])
+    x_train, x_test, y_train, y_test = train_test_split_gr(x, y, validation_days=30)
+    # perform ADF test
+    if perf_adf(y)[1] < 0.05:
+        print('Stationary Series')
+
+    # DATA - FOR AR(7) MODEL
+    trf_ar = GrowthRatioFeatures(num_lagged_feats=7, num_diff_feats=0, date_feats=False, glm_bounds=True)
+
+    x_ar, y_ar = trf_ar.transform(india_data.TotalConfirmed[41:])
+    x_train_ar, x_test_ar, y_train_ar, y_test_ar = train_test_split_gr(x_ar, y_ar, validation_days=30)
+    # perform ADF test
+    if perf_adf(y_ar)[1] < 0.05:
+        print('Stationary Series')
+
+    ### MODELS ### CREATE CLASS TIME PERMITTING
+
+    # Scaling for Poisson and Gamma Regression models, they use L2 regularization penalty
+    pipe_lin_reg_ar = Pipeline([('poly', PolynomialFeatures(1, include_bias=False)),
+                                ('scale', StandardScaler()), ('reg_lin', LinearRegression())])
+
+    pipe_lin_reg = Pipeline([('poly', PolynomialFeatures(1, include_bias=False)), ('scale', StandardScaler()),
+                             ('reg_lin', LinearRegression())])
+    pipe_reg_pois = Pipeline([('poly', PolynomialFeatures(1, include_bias=False)), ('scale', StandardScaler()),
+                              ('reg_pois', PoissonRegressor(alpha=0, max_iter=5000))])
+    pipe_reg_gamm = Pipeline([('poly', PolynomialFeatures(2, include_bias=False)), ('scale', StandardScaler()),
+                              ('reg_gamm', GammaRegressor(alpha=0, max_iter=5000))])
+
+    pipe_lin_reg_ar.fit(x_train_ar, y_train_ar)
+    pipe_lin_reg.fit(x_train, y_train)
+    pipe_reg_pois.fit(x_train, y_train)
+    pipe_reg_gamm.fit(x_train, y_train)
+
+    # Predictions
+    lin_preds = pipe_lin_reg_ar.predict(x_ar.dropna())
+    pos_preds = pipe_reg_pois.predict(x.dropna())
+    gam_preds = pipe_reg_gamm.predict(x.dropna())
+
+    # preds DF (could be slow, move to dict?)
+
+    preds = pd.DataFrame(data=np.concatenate((
+                                             np.concatenate((y_train, y_test)).reshape(-1, 1), lin_preds.reshape(-1, 1),
+                                             pos_preds.reshape(-1, 1), gam_preds.reshape(-1, 1)),
+                                             axis=1), columns=['TrueGR', 'ARModel', 'PoissonReg', 'GammaReg'])
+    preds.index = x.dropna().index
+    # back to correct scale
+    preds = preds + 1
+
+    ### FIGURE ###
+
+    fig = make_subplots(rows=1, cols=2,
+                        subplot_titles=("Models fit to Growth Ratio",
+                                        "Validation Set Predictions for Growth Ratio"),
+                        column_widths=[0.5, 0.5],
+                        horizontal_spacing=0.06)
+
+    fig_1 = go.Figure()
+    fig_1 = preds['TrueGR'].plot()
+    fig_1.update_traces(line=dict(width=10, color='grey'), opacity=.5)
+
+    fig_1.add_trace(go.Scatter(x=preds.index, y=preds['ARModel'], name='ARModel',
+                               line=dict(width=4, color='lightseagreen', dash="solid")))
+    fig_1.add_trace(go.Scatter(x=preds.index, y=preds['PoissonReg'], name='PoissonReg',
+                               line=dict(width=2, color='crimson', dash="solid"), opacity=.8))
+    fig_1.add_trace(go.Scatter(x=preds.index, y=preds['GammaReg'], name='GammaReg',
+                               line=dict(width=2, color='DarkViolet', dash="solid")))
+    fig_1.update_layout(shapes=[
+        dict(
+            type='line',
+            yref='paper', y0=0, y1=1,
+            xref='x', x0=preds.index[-30], x1=preds.index[-30]
+        )
+    ]
+    )
+
+    fig.append_trace(fig_1['data'][0], 1, 1)
+    fig.append_trace(fig_1['data'][1], 1, 1)
+    fig.append_trace(fig_1['data'][2], 1, 1)
+    fig.append_trace(fig_1['data'][3], 1, 1)
+
+    ### 2nd FIGURE ###
+
+    fig_2 = go.Figure()
+    fig_2 = preds[-30:]['TrueGR'].plot()
+    fig_2.update_traces(line=dict(width=None, color='grey'), opacity=.5)
+
+    fig_2.add_trace(go.Scatter(x=preds[-30:].index, y=preds[-30:]['ARModel'], name='ARModel',
+                               line=dict(width=None, color='lightseagreen', dash="solid")))
+    fig_2.add_trace(go.Scatter(x=preds[-30:].index, y=preds[-30:]['PoissonReg'], name='PoissonReg',
+                               line=dict(width=None, color='crimson', dash="solid")))
+    fig_2.add_trace(go.Scatter(x=preds[-30:].index, y=preds[-30:]['GammaReg'], name='GammaReg',
+                               line=dict(width=None, color='DarkViolet', dash="solid")))
+
+    fig_2['data'][0].showlegend = False
+    fig_2['data'][1].showlegend = False
+    fig_2['data'][2].showlegend = False
+    fig_2['data'][3].showlegend = False
+
+    fig.append_trace(fig_2['data'][0], 1, 2)
+    fig.append_trace(fig_2['data'][1], 1, 2)
+    fig.append_trace(fig_2['data'][2], 1, 2)
+    fig.append_trace(fig_2['data'][3], 1, 2)
+
+    fig.update_layout(shapes=[
+        dict(
+            type='line',
+            yref='paper', y0=0, y1=1,
+            xref='x', x0=preds.index[-30], x1=preds.index[-30]
+        )
+    ], legend=dict(
+        orientation="h",
+        yanchor="bottom",
+        y=1.05,
+        xanchor="right",
+        x=1
+    ), legend_title_text='',
+        margin=dict(
+            b=15,
+            t=5,
+            l=50,
+            r=50,
+            pad=1
+        ), )
+    # Axis Titles
+    fig.update_yaxes(title_text="Growth Ratio", row=1, col=1)
+
+    return fig
+

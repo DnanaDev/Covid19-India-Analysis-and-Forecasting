@@ -1,13 +1,14 @@
 """
 All the machine learning, statistical models for the Covid Forecasting Dashboard.
 """
-from sklearn.base import BaseEstimator, RegressorMixin
+from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin
 from sklearn.utils.validation import check_X_y, check_is_fitted
 from sklearn.exceptions import NotFittedError
 from sklearn.linear_model import LinearRegression, Ridge
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 from sklearn.pipeline import Pipeline
 import numpy as np
+import pandas as pd
 
 # curve fit function from scipy.optimize to fit a function using nonlinear least squares.
 from scipy.optimize import curve_fit
@@ -164,3 +165,102 @@ class TimeSeriesGrowthFactor():
             raise NotFittedError("Estimator instance is not fitted yet. Call 'fit'")
 
         return self.res_model.predict(start=X_start, end=X_end)
+
+
+""" Growth Ratio Prediction Functions 
+"""
+
+
+class GrowthRatioFeatures(BaseEstimator, TransformerMixin):
+    """Data transformation for easily creating Growth ratio features from the total confirmed cases.
+    Total confirmed is a date indexed series with total confirmed covid cases. If GLM bounds is true,
+    shifts growth ratio into the correct range [0,+inf] by subtracting 1.
+    First calculates the growth ratio. Performs the following transformations.
+    Lagged Feats - Lag of growth ratio for t days.
+    Diffed Feats - 1st Differed growth ratio of t lags. Useful to encode trend information.
+    Date Feats - used to create date feats like month, day, dayofweek to help encode seasonality.
+    """
+
+    def __init__(self, num_lagged_feats=7, num_diff_feats=1, date_feats=True, glm_bounds=True):
+        self.num_lagged_feats_ = num_lagged_feats
+        self.num_diff_feats_ = num_diff_feats
+        self.date_feats_ = date_feats
+        self.glm_bounds_ = glm_bounds
+        self.X = None
+        self.y = None
+
+    def fit(self, X, y=None):
+        # nothing to calculate for a transformation ex, calculating mean of data etc.
+        # could add gr calculation here.
+        return self
+
+    def transform(self, X, y=None):
+        # calculating growth ratio (target, y)
+        self.y = X / X.shift(1)
+        self.y = self.y.to_frame(name='Growth_Ratio')
+        self.y.dropna(inplace=True)
+        # subtracting 1 to get into right bounds.
+        if self.glm_bounds_:
+            self.y = self.y - 1
+
+        # creating features (features, x) - important to create a copy of target here, otherwise overwrites y
+
+        self.X = self.y.copy()
+
+        # creating lagged features
+        for i in range(1, self.num_lagged_feats_ + 1):
+            self.X[f'Lag_{i}days'] = self.y.shift(i)
+
+        # creating date features
+        if self.date_feats_:
+            self.X['month'] = self.X.index.month
+            self.X['day'] = self.X.index.day
+            self.X['day_week'] = self.X.index.dayofweek
+            self.X[f'Days_since_{self.X.index.date.min()}'] = np.arange(len(self.X.index.tolist()))
+
+            # creating differenced features
+            # check to see if lagged features exist and num of diff features less than lagged feats.
+            if (self.num_lagged_feats_ >= 1) & (self.num_lagged_feats_ >= self.num_diff_feats_):
+
+                for i in range(1, self.num_diff_feats_ + 1):
+                    self.X[f'Lag_{i}days_diff'] = self.X[f'Lag_{i}days'].diff(1)
+            else:
+                print('Number of diffed lag features requested higher than number of lagged features')
+
+        # dropping growth ratio(target) from x
+        self.X.drop('Growth_Ratio', axis=1, inplace=True)
+
+        # if no features generated, pass just the days since feature as feature(can break)
+        if self.X.shape[1] == 0:
+            self.X[f'Days_since_{self.X.index.date.min()}'] = np.arange(len(self.X.index.tolist()))
+
+        return self.X, self.y
+
+
+def perf_adf(ts):
+    """Performs ADF test on time series and prints Results.
+    """
+    dftest = stattools.adfuller(ts, maxlag=None, autolag='AIC')
+    df_result = pd.Series(dftest[:4], index=['Test- Stat', 'P-Value', '# of Lags Used', '# of Obs Used'])
+    # For Critical values at diff. confidence intervals
+    for key, value in dftest[4].items():
+        df_result[f'Critical Value {key}'] = value
+    return df_result.head(10)
+
+
+def train_test_split_gr(x, y, validation_days=30):
+    """Return in form of numpy array ?"""
+    # Removing all NaN values - not best to abstract this away
+    index = x.isna().sum().max()
+    print(f'{index} samples (Days) dropped from start of feature vector due to nans')
+    x_temp = x[index:]
+    target = y[index:]
+    # train-test split
+
+    z = validation_days
+    x_train = x_temp[:-z]
+    x_test = x_temp[-z:]
+    y_train = target[:-z]
+    y_test = target[-z:]
+
+    return x_train.values, x_test.values, y_train.values.ravel(), y_test.values.ravel()

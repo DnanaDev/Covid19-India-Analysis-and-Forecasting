@@ -16,7 +16,7 @@ import numpy as np
 
 from utils.Dashboard_helper import india_national, log_epidemic_comp, country_df, india_test_plot, \
     national_growth_factor, make_state_dataframe, sharpest_inc_state, state_plots, forecast_curve_fit, \
-    forecast_growth_factor, fetch_data, india_growth_ratio
+    forecast_growth_factor, fetch_data, india_growth_ratio, forecast_growth_ratio
 
 external_stylesheets = ['https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.18.1/styles/monokai-sublime.min.css']
 
@@ -372,7 +372,13 @@ def serve_layout():
                           Gamma distribution, which is typically used to model exponential target data. 
                           The inverse link function $h$ used in Gamma regression is 
                          $h = -(Xw)^{-1}$ and the target domain is $y \in (0, \infty)$. Shifting the growth ratio by 1 meets 
-                         this constraint.""", html.Br(), html.Br(),"""Scikit-Learn applies $l_2$ regularisation to 
+                         this constraint."""],
+                         style={'margin-top': '10px',
+                                'margin-left': '25px',
+                                'margin-right': '25px',
+                                'textAlign': 'justify'}),
+                  dcc.Graph(id="national-growth-ratio-preds"),
+                  html.P(["""Scikit-Learn applies $l_2$ regularisation to 
                          estimators of the GLM class by default which resulted in poor performance and has not been 
                          used. Lagged growth ratio of the last 7-days along with date features have been used as 
                          features for the GLMs. For the Gamma regression model, performing a polynomial 
@@ -388,7 +394,7 @@ def serve_layout():
                          style={'margin-top': '10px',
                                 'margin-left': '25px',
                                 'margin-right': '25px',
-                                'textAlign': 'justify'}),
+                                'textAlign': 'justify'})
                   ## Graph of Fit of GLMs
                   ## Table of performancce of GLMs
                   ## sub-Section - Using Growth Ratio to predict cases,
@@ -419,7 +425,8 @@ app.layout = serve_layout
      Output('fit-logistic-stats', 'children'),
      Output('forecast-growth-factor', 'figure'),
      Output('growth-factor-table', 'data'),
-     Output('national-growth-ratio', 'figure')],
+     Output('national-growth-ratio', 'figure'),
+     Output('national-growth-ratio-preds', 'figure')],
     [Input('nat-graph-selector', 'value'),
      Input('radio-national-scale-selector', 'value'),
      Input('Testing-graph-drop', 'value'),
@@ -470,8 +477,12 @@ def fetch_plots(value, value_scale, value_test, value_test_scale, value_gf, valu
 
     fig_gr = india_growth_ratio(india_data)
 
+    # forecasts for growth ratio
+
+    figure_forecast_gr = forecast_growth_ratio(india_data)
+
     return figure, figure_test, figure_gf, figure_state, figure_log_curve, log_fit_text, figure_forecast_gf, eval_metrics_gf \
-        , fig_gr
+        , fig_gr, figure_forecast_gr
 
 
 if __name__ == '__main__':
