@@ -16,7 +16,7 @@ import numpy as np
 
 from utils.Dashboard_helper import india_national, log_epidemic_comp, country_df, india_test_plot, \
     national_growth_factor, make_state_dataframe, sharpest_inc_state, state_plots, forecast_curve_fit, \
-    forecast_growth_factor, fetch_data, india_growth_ratio, forecast_growth_ratio
+    forecast_growth_factor, fetch_data, india_growth_ratio, forecast_growth_ratio, forecast_cases_growth_ratio
 
 external_stylesheets = ['https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.18.1/styles/monokai-sublime.min.css']
 
@@ -267,14 +267,14 @@ def serve_layout():
                                                                                                 'margin-left': '15px',
                                                                                                 'margin-right': '15px'}),
             html.P(["""The growth factor is a measure of exponential growth of an epidemic. The Growth Factor
-        on day N is defined as : \\begin{gather} G_{f} = \\frac{\Delta{C_{(N)}}}{\Delta{C_{(N-1)}}} \end{gather}
-        I.e. the ratio of change in total or cumulative confirmed cases on day N and day N-1. This can also be framed 
-        as the ratio of the number of new cases on day N and day N-1.
+        on day n is defined as : \\begin{gather} Gf_{n} = \\frac{\Delta{C_{n}}}{\Delta{C_{n-1}}} \end{gather}
+        I.e. the ratio of change in total or cumulative confirmed cases on day n and day n-1. This can also be framed 
+        as the ratio of the number of new cases on day n and day n-1.
          The metric has a few helpful properties : """,
                     html.Br(), """
-        1. A $ G_{f} > 1 $ signifies exponential growth in the number of new cases.""", html.Br(), """ 
-        2. A $ G_{f} < 1 $ signifies decline or decay in the number of new cases.""", html.Br(), """
-        3. A $ G_{f} = 1 $ is the inflection point and signifies the point where exponential growth of the epidemic has stopped 
+        1. A $ Gf > 1 $ signifies exponential growth in the number of new cases.""", html.Br(), """ 
+        2. A $ Gf < 1 $ signifies decline or decay in the number of new cases.""", html.Br(), """
+        3. A $ Gf = 1 $ is the inflection point and signifies the point where exponential growth of the epidemic has stopped 
         and is now constant."""
                     ],
                    style={'margin-left': '25px', 'margin-right': '25px', 'textAlign': 'justify'}),
@@ -336,9 +336,9 @@ def serve_layout():
                                                                                                   'margin-left': '15px',
                                                                                                   'margin-right': '15px'}),
                   html.P(["""The growth ratio is a metric that tracks the percentage Increase in total cumulative 
-              cases from one day to the next. The growth ratio on day N is defined as : \\begin{gather} G_{r} = \\frac{{C_{(N)}}}{{C_{(N-1)}}} \end{gather}
-               I.e. the ratio of total or cumulative confirmed cases on day N and 
-              day N-1. The metric is not that interesting in itself but can be used to forecast the number of new 
+              cases from one day to the next. The growth ratio on day n is defined as : \\begin{gather} Gr_{n} = \\frac{{C_{n}}}{{C_{n-1}}} \end{gather}
+               I.e. the ratio of total or cumulative confirmed cases on day n and 
+              day n-1. The metric is not that interesting in itself but can be used to forecast the number of new 
               cases."""],
                          style={'margin-top': '10px',
                                 'margin-left': '25px',
@@ -350,15 +350,13 @@ def serve_layout():
                   negligible. The relative percentage growth in the number of cases has also gone down from a high of 
                   around 20% and is also much lower than the mean growth ratio. This could indicate that the initial 
                   exponential growth has most likely slowed down.
-                  """, html.H5('Forecasting Growth Ratio Using Generalized Linear Models'),
-                          """ Similar to the Growth Factor, lagged growth ratio for the last 7-days along with date features
-                  have been used for a baseline Linear Regression model.""", html.Br(), """
-                  Looking at the decaying downwards trend, it is possible to use Generalized Linear Models (GLM) 
+                  """, html.H5('Forecasting Growth Ratio Using Generalized Linear Models'), """
+                  Looking at the decaying downwards trend, it could be possible to use Generalized Linear Models (GLM) 
                   with a suitable link function to model the problem. GLMs are used to model a relationship between predictors
                   $(X)$ and a non-normal target variable $(y)$. For a GLM with parameters $(w)$, the predicted values $(\hat{y})$
                   are linked to a linear combination of the input variables $(X)$ via an inverse link function $h$ as :
                   \\begin{gather} \hat{y}(w, X) = h(Xw). \end{gather}
-                  So, the resultant model is still linear in parameters even though a non-linear relationship between 
+                  So, the resulting model is still linear in parameters even though a non-linear relationship between 
                   the predictors and target is being modelled. GLMs have been introduced in Scikit-Learn recently (0.23).""",
                           html.Br(), html.B("Poisson Regression"), html.Br(), """Assumes the target to be from a 
                           Poisson distribution, typically used for data that is a count of occurrences of something 
@@ -367,7 +365,7 @@ def serve_layout():
                            The inverse link function $h$ used in Poisson regression is 
                          $h = \exp(Xw)$ and the target domain is $y \in [0, \infty)$. A value of 1 is subtracted from the 
                          growth ratio to get closer to meeting this constraint and should be fine for short-term forecasting."""
-                         ,html.Br(), html.B("Gamma Regression"), html.Br(),"""
+                             , html.Br(), html.B("Gamma Regression"), html.Br(), """
                           Assumes the target to be from a 
                           Gamma distribution, which is typically used to model exponential target data. 
                           The inverse link function $h$ used in Gamma regression is 
@@ -378,28 +376,44 @@ def serve_layout():
                                 'margin-right': '25px',
                                 'textAlign': 'justify'}),
                   dcc.Graph(id="national-growth-ratio-preds"),
-                  html.P(["""Scikit-Learn applies $l_2$ regularisation to 
-                         estimators of the GLM class by default which resulted in poor performance and has not been 
-                         used. Lagged growth ratio of the last 7-days along with date features have been used as 
-                         features for the GLMs. For the Gamma regression model, performing a polynomial 
-                         transformation of degree 2 and scaling the input features led to much better performance. As 
-                         a baseline, an Autoregressive (AR(7)) model has been used. The $R^2$ score is not the most 
-                         suitable metric for evaluating GLMs, MAE is used to evaluate forecasting performance. 
-                         Although multiple assumptions of poisson (same mean and variance, independence) and gamma 
-                         distributions are violated by the target variable the models can still prove to be useful fo 
-                         short-term predictions. After trying out various combinations of features with different 
-                         lags, date features, polynomial transformation etc. the Gamma regression model seems to be a 
-                         better fit than the Poisson regression model. The Gamma Regression model is the only 
-                         regression model that is able to  outperform the baseline AR model."""],
+                  html.Div([dash_table.DataTable(
+                      id='growth-ratio-table',
+                      columns=[
+                          {'name': 'Model', 'id': 'Model'},
+                          {'name': 'R2', 'id': 'R2'},
+                          {'name': 'MAE', 'id': 'MAE'},
+                      ],
+                      data=[],
+                      sort_action="native",
+                      style_header={
+                          'fontWeight': 'bold'
+                      }
+
+                  )], style={'margin-left': '25%', 'margin-right': '25%'}),
+                  html.Plaintext("""* Click on the legend and toggle visibility for other forecasts.""",
+                                 style={'margin-top': '0px',
+                                        'margin-left': '25px', 'margin-right': '25px',
+                                        'textAlign': 'right'}),
+                  html.P(["""Similar to the Growth Factor, an Autoregressive (AR(7)) model has been used as a 
+                  baseline. Scikit-Learn applies $l_2$ regularisation to  estimators of the GLM class by default 
+                  which resulted in poor performance and has not been used. Lagged growth ratio of the last 7-days 
+                  along with date features have been used as features for the GLMs. For the GLMs, performing a 
+                  polynomial transformation of degree 2 and scaling the input features led to better performance. The 
+                  $R^2$ score is not a suitable metric for evaluating GLMs, but is still presented for consistency
+                  in evaluating forecasts. The Gamma Regression model is the only regression model that is able 
+                  to  outperform the baseline AR model.""", html.H5('Using Growth Ratio to Forecast Cases'),
+                          """ The predicted Growth Ratio can be used to predicted the number of Total and Daily 
+                          cases by a simple transformation : \\begin{gather} \hat{C_{n}} = C_{n-1}\\times{\hat{Gr_{n}}}\end{gather}"""],
                          style={'margin-top': '10px',
                                 'margin-left': '25px',
                                 'margin-right': '25px',
-                                'textAlign': 'justify'})
-                  ## Graph of Fit of GLMs
-                  ## Table of performancce of GLMs
+                                'textAlign': 'justify'}),
+
+                  dcc.Graph(id="national-growth-ratio-cases-preds")
+
+
                   ## sub-Section - Using Growth Ratio to predict cases,
                   ## Table of performance of this prediction
-
 
                   ## Finally Using Growth Ratio and Factor as features to final Ridge Regression model.
                   ## Compared to baseline SARIMA model
@@ -426,7 +440,9 @@ app.layout = serve_layout
      Output('forecast-growth-factor', 'figure'),
      Output('growth-factor-table', 'data'),
      Output('national-growth-ratio', 'figure'),
-     Output('national-growth-ratio-preds', 'figure')],
+     Output('national-growth-ratio-preds', 'figure'),
+     Output('growth-ratio-table', 'data'),
+     Output('national-growth-ratio-cases-preds', 'figure')],
     [Input('nat-graph-selector', 'value'),
      Input('radio-national-scale-selector', 'value'),
      Input('Testing-graph-drop', 'value'),
@@ -461,10 +477,12 @@ def fetch_plots(value, value_scale, value_test, value_test_scale, value_gf, valu
     figure_log_curve, score_sigmoid_fit = forecast_curve_fit(india_data, x_data, y_data)
     # text with validation metrics for logistic curve
     log_fit_text = """The logistic curve seems to fit the general trend of the growth. For the validation set the """, \
-                   html.B('R^2 is {:.4f}.'.format(score_sigmoid_fit['R^2'])), """ The """, \
+                   html.B('$R^2$ is {:.4f}.'.format(score_sigmoid_fit['R^2'])), """ The """, \
                    html.B('Mean Absolute Error of {} '.format(int(score_sigmoid_fit['MAE']))), """ should show a less 
                    optimistic result as a simple logistic curve fit will not be able to account for seasonality or 
-                   complex interactions. The results serves as a baseline for future models.""", html.Br(), """
+                   complex interactions. An important thing to note is that $R^2$ is not the most suitable metric for 
+                   time-series data and can give misleading results, more focus is on optimizing for the MAE.
+                   The results here serve as a baseline for future models.""", html.Br(), """
                    Using the fit parameters of the function, it can be estimated that the Max Number of cases
                    or Peak of the curve will be {} cases. The Inflection point of the growth will be reached 
                    {} days after the 30th of Jan.""".format(int(score_sigmoid_fit['params']['L']),
@@ -479,11 +497,13 @@ def fetch_plots(value, value_scale, value_test, value_test_scale, value_gf, valu
 
     # forecasts for growth ratio
 
-    figure_forecast_gr = forecast_growth_ratio(india_data)
+    figure_forecast_gr, eval_metrics_gr, preds_gr = forecast_growth_ratio(india_data)
+
+    figure_forecast_cases_gr = forecast_cases_growth_ratio(india_data, preds_gr)
 
     return figure, figure_test, figure_gf, figure_state, figure_log_curve, log_fit_text, figure_forecast_gf, eval_metrics_gf \
-        , fig_gr, figure_forecast_gr
+        , fig_gr, figure_forecast_gr, eval_metrics_gr, figure_forecast_cases_gr
 
 
 if __name__ == '__main__':
-    app.run_server(host='0.0.0.0', port=8080, debug=True)
+    app.run_server(host='localhost', port=8080, debug=True)

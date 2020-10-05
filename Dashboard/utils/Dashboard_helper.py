@@ -7,12 +7,9 @@ from plotly.subplots import make_subplots
 import json
 from urllib.request import urlopen
 import datetime
-from .predict import SigmoidCurveFit, growth_factor_features, PredictGrowthFactor, TimeSeriesGrowthFactor,\
-    GrowthRatioFeatures, perf_adf, train_test_split_gr
+from .predict import SigmoidCurveFit, growth_factor_features, PredictGrowthFactor, TimeSeriesGrowthFactor, \
+    GrowthRatioFeatures, perf_adf, train_test_split_gr, RegressionModelsGrowthRatio
 from sklearn.metrics import mean_absolute_error, r2_score
-from sklearn.pipeline import Pipeline
-from sklearn.linear_model import PoissonRegressor,GammaRegressor, LinearRegression
-from sklearn.preprocessing import PolynomialFeatures,StandardScaler
 
 # Suppressing statsmodels warnings
 import warnings
@@ -758,8 +755,9 @@ def forecast_growth_ratio(india_data):
     x, y = trf.transform(india_data.TotalConfirmed[41:])
     x_train, x_test, y_train, y_test = train_test_split_gr(x, y, validation_days=30)
     # perform ADF test
-    if perf_adf(y)[1] < 0.05:
-        print('Stationary Series')
+    if perf_adf(y)[1] > 0.05:
+        # this should be a log
+        print('WARNING : Growth Ratio is Non-Stationary Series')
 
     # DATA - FOR AR(7) MODEL
     trf_ar = GrowthRatioFeatures(num_lagged_feats=7, num_diff_feats=0, date_feats=False, glm_bounds=True)
@@ -767,65 +765,58 @@ def forecast_growth_ratio(india_data):
     x_ar, y_ar = trf_ar.transform(india_data.TotalConfirmed[41:])
     x_train_ar, x_test_ar, y_train_ar, y_test_ar = train_test_split_gr(x_ar, y_ar, validation_days=30)
     # perform ADF test
-    if perf_adf(y_ar)[1] < 0.05:
-        print('Stationary Series')
+    if perf_adf(y_ar)[1] > 0.05:
+        print('WARNING : Growth Ratio is Non-Stationary Series')
 
-    ### MODELS ### CREATE CLASS TIME PERMITTING
+    #### MODELS ###
 
-    # Scaling for Poisson and Gamma Regression models, they use L2 regularization penalty
-    pipe_lin_reg_ar = Pipeline([('poly', PolynomialFeatures(1, include_bias=False)),
-                                ('scale', StandardScaler()), ('reg_lin', LinearRegression())])
+    reg_models = RegressionModelsGrowthRatio()
+    reg_models.fit(x_train, y_train, x_train_ar, y_train_ar)
 
-    pipe_lin_reg = Pipeline([('poly', PolynomialFeatures(1, include_bias=False)), ('scale', StandardScaler()),
-                             ('reg_lin', LinearRegression())])
-    pipe_reg_pois = Pipeline([('poly', PolynomialFeatures(1, include_bias=False)), ('scale', StandardScaler()),
-                              ('reg_pois', PoissonRegressor(alpha=0, max_iter=5000))])
-    pipe_reg_gamm = Pipeline([('poly', PolynomialFeatures(2, include_bias=False)), ('scale', StandardScaler()),
-                              ('reg_gamm', GammaRegressor(alpha=0, max_iter=5000))])
+    # predictions for validation set
+    preds_valid = reg_models.predict(x_test, x_test_ar)
+    # Evaluation metrics for the models
+    eval_metrics = []
+    for res in preds_valid.keys():
+        scores = {}
+        scores['Model'] = res
+        scores['R2'] = round(r2_score(y_test, preds_valid[res] - 1), 4)
+        scores['MAE'] = round(mean_absolute_error(y_test, preds_valid[res] - 1), 7)
 
-    pipe_lin_reg_ar.fit(x_train_ar, y_train_ar)
-    pipe_lin_reg.fit(x_train, y_train)
-    pipe_reg_pois.fit(x_train, y_train)
-    pipe_reg_gamm.fit(x_train, y_train)
+        eval_metrics.append(scores)
 
-    # Predictions
-    lin_preds = pipe_lin_reg_ar.predict(x_ar.dropna())
-    pos_preds = pipe_reg_pois.predict(x.dropna())
-    gam_preds = pipe_reg_gamm.predict(x.dropna())
+    # Predictions - over entire dataset.
+    preds = reg_models.predict(x.dropna(), x_ar.dropna())
 
-    # preds DF (could be slow, move to dict?)
-
-    preds = pd.DataFrame(data=np.concatenate((
-                                             np.concatenate((y_train, y_test)).reshape(-1, 1), lin_preds.reshape(-1, 1),
-                                             pos_preds.reshape(-1, 1), gam_preds.reshape(-1, 1)),
-                                             axis=1), columns=['TrueGR', 'ARModel', 'PoissonReg', 'GammaReg'])
-    preds.index = x.dropna().index
-    # back to correct scale
-    preds = preds + 1
+    # add trueGR to dict (back in actual scale)
+    preds['TrueGR'] = np.concatenate((y_train, y_test)) + 1
+    # Save the date-time index.
+    preds['index'] = x.dropna().index
 
     ### FIGURE ###
 
     fig = make_subplots(rows=1, cols=2,
-                        subplot_titles=("Models fit to Growth Ratio",
+                        subplot_titles=("Fit over entire Data",
                                         "Validation Set Predictions for Growth Ratio"),
                         column_widths=[0.5, 0.5],
                         horizontal_spacing=0.06)
 
     fig_1 = go.Figure()
-    fig_1 = preds['TrueGR'].plot()
+
+    fig_1.add_trace(go.Scatter(x=preds['index'], y=preds['TrueGR'], name='TrueGR'))
     fig_1.update_traces(line=dict(width=10, color='grey'), opacity=.5)
 
-    fig_1.add_trace(go.Scatter(x=preds.index, y=preds['ARModel'], name='ARModel',
-                               line=dict(width=4, color='lightseagreen', dash="solid")))
-    fig_1.add_trace(go.Scatter(x=preds.index, y=preds['PoissonReg'], name='PoissonReg',
+    fig_1.add_trace(go.Scatter(x=preds['index'], y=preds['ARModel'], name='ARModel',
+                               line=dict(width=4, color='lightseagreen', dash="solid"), visible="legendonly"))
+    fig_1.add_trace(go.Scatter(x=preds['index'], y=preds['PoissonReg'], name='PoissonReg',
                                line=dict(width=2, color='crimson', dash="solid"), opacity=.8))
-    fig_1.add_trace(go.Scatter(x=preds.index, y=preds['GammaReg'], name='GammaReg',
-                               line=dict(width=2, color='DarkViolet', dash="solid")))
+    fig_1.add_trace(go.Scatter(x=preds['index'], y=preds['GammaReg'], name='GammaReg',
+                               line=dict(width=2, color='DarkViolet', dash="solid"), visible="legendonly"))
     fig_1.update_layout(shapes=[
         dict(
             type='line',
             yref='paper', y0=0, y1=1,
-            xref='x', x0=preds.index[-30], x1=preds.index[-30]
+            xref='x', x0=preds['index'][-30], x1=preds['index'][-30]
         )
     ]
     )
@@ -838,14 +829,15 @@ def forecast_growth_ratio(india_data):
     ### 2nd FIGURE ###
 
     fig_2 = go.Figure()
-    fig_2 = preds[-30:]['TrueGR'].plot()
+    fig_2.add_trace(go.Scatter(x=preds['index'][-30:], y=preds['TrueGR'][-30:], name='TrueGR'))
+
     fig_2.update_traces(line=dict(width=None, color='grey'), opacity=.5)
 
-    fig_2.add_trace(go.Scatter(x=preds[-30:].index, y=preds[-30:]['ARModel'], name='ARModel',
+    fig_2.add_trace(go.Scatter(x=preds['index'][-30:], y=preds['ARModel'][-30:], name='ARModel',
                                line=dict(width=None, color='lightseagreen', dash="solid")))
-    fig_2.add_trace(go.Scatter(x=preds[-30:].index, y=preds[-30:]['PoissonReg'], name='PoissonReg',
+    fig_2.add_trace(go.Scatter(x=preds['index'][-30:], y=preds['PoissonReg'][-30:], name='PoissonReg',
                                line=dict(width=None, color='crimson', dash="solid")))
-    fig_2.add_trace(go.Scatter(x=preds[-30:].index, y=preds[-30:]['GammaReg'], name='GammaReg',
+    fig_2.add_trace(go.Scatter(x=preds['index'][-30:], y=preds['GammaReg'][-30:], name='GammaReg',
                                line=dict(width=None, color='DarkViolet', dash="solid")))
 
     fig_2['data'][0].showlegend = False
@@ -862,7 +854,7 @@ def forecast_growth_ratio(india_data):
         dict(
             type='line',
             yref='paper', y0=0, y1=1,
-            xref='x', x0=preds.index[-30], x1=preds.index[-30]
+            xref='x', x0=preds['index'][-30], x1=preds['index'][-30]
         )
     ], legend=dict(
         orientation="h",
@@ -881,5 +873,45 @@ def forecast_growth_ratio(india_data):
     # Axis Titles
     fig.update_yaxes(title_text="Growth Ratio", row=1, col=1)
 
-    return fig
+    return fig, eval_metrics, preds
 
+
+def forecast_cases_growth_ratio(india_data, preds_gr):
+    """"PREDICTIONS FOR CASES"""
+
+    columns_key = ['ARModel', 'GammaReg', 'PoissonReg', 'TrueGR']
+
+    validation_days = 30
+    preds_df = pd.DataFrame(index=preds_gr['index'][-validation_days:],
+                            data=np.hstack((preds_gr['ARModel'][-validation_days:].reshape(-1, 1),
+                                            preds_gr['GammaReg'][-validation_days:].reshape(-1, 1),
+                                            preds_gr['PoissonReg'][-validation_days:].reshape(-1, 1),
+                                            preds_gr['TrueGR'][-validation_days:].reshape(-1, 1)
+                                            )),
+                            columns=columns_key)
+
+    # copy for validation
+    india_data_preds = india_data[['TotalConfirmed', 'DailyConfirmed']].join(preds_df, how='right')
+
+    india_DailyConfirmedValidation = india_data_preds.DailyConfirmed[-validation_days:].copy()
+    india_DailyConfirmedValidation = india_DailyConfirmedValidation.to_frame('ActualCases')
+
+    # iterating over DF and multiplying (i-1) days totalconf * predicted growth ratio for next day (i)= toatal conf
+    # day (i)
+
+    for model in columns_key[:-1]:
+        for i in range(-validation_days, 0):
+            # print(f' Total Cases {india_data_preds.index[i+1]} = Total Cases{india_data.TotalConfirmed.index[i]} *
+            # GR {india_data_preds[model].index[i+1]}')
+            india_data_preds.TotalConfirmed.iloc[i + 1] = india_data.TotalConfirmed.iloc[i] * \
+                                                          india_data_preds[model].iloc[i]
+            # print(f' Daily Cases {india_data_preds.DailyConfirmed.index[i+1]} = Total Cases{
+            # india_data_preds.TotalConfirmed.index[i+1]} - Total Cases {india_data_preds.TotalConfirmed.index[i]}')
+            india_data_preds.DailyConfirmed.iloc[i + 1] = india_data_preds.TotalConfirmed.iloc[i + 1] - \
+                                                          india_data_preds.TotalConfirmed.iloc[i]
+            india_DailyConfirmedValidation[model + 'DailyConfirmed'] = india_data_preds.DailyConfirmed.copy()
+
+    days_lost_feat_prep = 2
+    india_DailyConfirmedValidation = india_DailyConfirmedValidation.iloc[days_lost_feat_prep:]
+    fig = india_DailyConfirmedValidation.plot()
+    return fig

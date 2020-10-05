@@ -4,7 +4,7 @@ All the machine learning, statistical models for the Covid Forecasting Dashboard
 from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin
 from sklearn.utils.validation import check_X_y, check_is_fitted
 from sklearn.exceptions import NotFittedError
-from sklearn.linear_model import LinearRegression, Ridge
+from sklearn.linear_model import LinearRegression, Ridge, PoissonRegressor, GammaRegressor
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 from sklearn.pipeline import Pipeline
 import numpy as np
@@ -252,7 +252,7 @@ def train_test_split_gr(x, y, validation_days=30):
     """Return in form of numpy array ?"""
     # Removing all NaN values - not best to abstract this away
     index = x.isna().sum().max()
-    print(f'{index} samples (Days) dropped from start of feature vector due to nans')
+    # print(f'{index} samples (Days) dropped from start of feature vector due to nans')
     x_temp = x[index:]
     target = y[index:]
     # train-test split
@@ -264,3 +264,70 @@ def train_test_split_gr(x, y, validation_days=30):
     y_test = target[-z:]
 
     return x_train.values, x_test.values, y_train.values.ravel(), y_test.values.ravel()
+
+
+class RegressionModelsGrowthRatio():
+    """Class to return predictions for growth ratio by multiple
+    regression estimators. Contains Pipelines with for creating polynomial hyperparameters, feature scaling done,
+    hardcoded hyperparameters. No parameter, estimator validation done. Returns a dictionary with results
+    for all the estimators. Not inheriting Sklearn regression class.
+    1.Linear Regression. 2. Poisson Regression. 3. Gamma Regression.
+    """
+
+    def __init__(self):
+
+        # pipelines for the models.
+        # Scaling for Poisson and Gamma Regression models, they use L2 regularization penalty
+        self.pipe_lin_reg_ar = Pipeline([('poly', PolynomialFeatures(1, include_bias=False)),
+                                         ('scale', StandardScaler()), ('reg_lin', LinearRegression())])
+        self.pipe_reg_pois = Pipeline([('poly', PolynomialFeatures(2, include_bias=False)),
+                                       ('scale', StandardScaler()),
+                                       ('reg_pois', PoissonRegressor(alpha=0, max_iter=5000))])
+        self.pipe_reg_gamm = Pipeline([('poly', PolynomialFeatures(2, include_bias=False)),
+                                       ('scale', StandardScaler()),
+                                       ('reg_gamm', GammaRegressor(alpha=0, max_iter=5000))])
+        # initial data values for checking estimators fit ?
+        self.x = None
+        self.y = None
+        self.x_ar = None
+        self.y_ar = None
+        # dictionary for results.
+        self.results = {}
+
+    def fit(self, x, y, x_ar, y_ar):
+        """Takes in features and labels for both the regression and AR models.
+        NOTE: Very sketchy way to do this. Ideally shouldn't even have two different 'class' of estimatorss together
+        That fit on different data.
+        """
+        # assign data
+        self.x = x
+        self.y = y
+        self.x_ar = x_ar
+        self.y_ar = y_ar
+
+        # fit models
+        self.pipe_reg_pois.fit(x, y)
+        self.pipe_reg_gamm.fit(x, y)
+        self.pipe_lin_reg_ar.fit(x_ar, y_ar)
+
+    def predict(self, X, X_ar, correct_glm_bounds=True):
+        # check if estimators fit - this isn't entirely correct
+
+        # iterables of rules
+        rules = [self.x is None, self.y is None, self.x_ar is None, self.y_ar is None]
+        # any - if any of them is true, returns true.
+        if any(rules):
+            raise NotFittedError("Estimator instance is not fitted yet. Call 'fit'")
+
+            # storing predictions
+        self.results['ARModel'] = self.pipe_lin_reg_ar.predict(X_ar)
+        self.results['PoissonReg'] = self.pipe_reg_pois.predict(X)
+        self.results['GammaReg'] = self.pipe_reg_gamm.predict(X)
+
+        # move back to actual bounds before correction for GLM
+        if correct_glm_bounds:
+            self.results['ARModel'] += 1
+            self.results['PoissonReg'] += 1
+            self.results['GammaReg'] += 1
+
+        return self.results
