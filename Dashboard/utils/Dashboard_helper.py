@@ -19,6 +19,8 @@ warnings.simplefilter('ignore', ValueWarning)
 
 pd.options.plotting.backend = "plotly"
 
+# suppress SettingWithCopyWarning
+pd.options.mode.chained_assignment = None
 """ Functions for Fetching-Wrangling Data 
 """
 
@@ -520,13 +522,12 @@ def state_plots(state_series, state_name):
 
     # figure specs.
     fig.update_layout(height=700, showlegend=True,
-                      title_text=f"{state_name} Statistics", legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=-0.1,
-            xanchor="right",
-            x=1
-        ))
+                      title_text=f"{state_name} Statistics", legend=dict(orientation="h",
+                                                                         yanchor="bottom",
+                                                                         y=-0.1,
+                                                                         xanchor="right",
+                                                                         x=1
+                                                                         ))
 
     return fig
 
@@ -546,8 +547,9 @@ def forecast_curve_fit(india_data, x_data, y_data):
     sigmoid = SigmoidCurveFit()
     sigmoid.fit(x_train.reshape(-1, 1), y_train)
 
-    score['R^2'] = sigmoid.score(x_test, y_test)
-    score['MAE'] = mean_absolute_error(y_test, sigmoid.predict(x_test))
+    # Getting validation score on confirmed Daily cases by taking diff of prediction.
+    score['R^2'] = r2_score(np.diff(y_test, n=1).astype(int), np.diff(sigmoid.predict(x_test), n=1).astype(int))
+    score['MAE'] = mean_absolute_error(np.diff(y_test, n=1).astype(int), np.diff(sigmoid.predict(x_test), n=1).astype(int))
     score['params'] = sigmoid.get_sigmoid_params()
 
     # make everything other than every 5th value nan
@@ -751,7 +753,7 @@ def forecast_growth_ratio(india_data):
     # Creating Growth Ratio Features using class.
     trf = GrowthRatioFeatures(num_lagged_feats=7, num_diff_feats=1, date_feats=True, glm_bounds=True)
 
-    ### DATA - FOR REGRESSION MODELS
+    # DATA - FOR REGRESSION MODELS
     x, y = trf.transform(india_data.TotalConfirmed[41:])
     x_train, x_test, y_train, y_test = train_test_split_gr(x, y, validation_days=30)
     # perform ADF test
@@ -901,12 +903,11 @@ def forecast_cases_growth_ratio(india_data, preds_gr):
 
     for model in columns_key[:-1]:
         for i in range(-validation_days, 0):
-            # print(f' Total Cases {india_data_preds.index[i+1]} = Total Cases{india_data.TotalConfirmed.index[i]} *
-            # GR {india_data_preds[model].index[i+1]}')
+            # Logic in notebook
+            # copy with warning suppressed, I'm not assigning anything to india_data_preds[model].iloc[]
             india_data_preds.TotalConfirmed.iloc[i + 1] = india_data.TotalConfirmed.iloc[i] * \
                                                           india_data_preds[model].iloc[i]
-            # print(f' Daily Cases {india_data_preds.DailyConfirmed.index[i+1]} = Total Cases{
-            # india_data_preds.TotalConfirmed.index[i+1]} - Total Cases {india_data_preds.TotalConfirmed.index[i]}')
+
             india_data_preds.DailyConfirmed.iloc[i + 1] = india_data_preds.TotalConfirmed.iloc[i + 1] - \
                                                           india_data_preds.TotalConfirmed.iloc[i]
             india_DailyConfirmedValidation[model + 'DailyConfirmed'] = india_data_preds.DailyConfirmed.copy()

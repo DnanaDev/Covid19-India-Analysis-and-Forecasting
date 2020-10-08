@@ -107,9 +107,9 @@ def serve_layout():
         html.Div([html.P(['''Dashboard for analysing and forecasting the spread of the pandemic using Epidemiological,
     Time-Series and Machine Learning models and metrics.''',
                           html.Br(), html.B('Disclaimer : '),
-                          '''The authors of the dashboard are not epidemiologists and any analysis and forecasting is not be 
-                      taken seriously. The statistics, metrics and forecasts update daily and the analysis was performed
-                       in the first week of September.'''],
+                          '''The authors of the dashboard are not epidemiologists and any analysis and forecasting is 
+                          not be taken seriously. The statistics, metrics and forecasts update daily and the analysis 
+                          was performed in the first week of September.'''],
                          style={'margin-left': '25px', 'margin-right': '25px', 'textAlign': 'justify'}),
                   ]),
 
@@ -139,15 +139,14 @@ def serve_layout():
                                                                      'justify-content': 'center',
                                                                      'margin-left': '30px', 'margin-right': '15px'}
                       )]),
-            html.P([""" There is a weekly seasonal 
-               pattern to the number of new cases reported which can be smoothed by taking a 7-day moving average. 
-               Another thing to note is that by the end of August the number of recoveries a day had almost caught 
-               up to the number of new cases before another wave of cases in September. The relative increase in confirmed cases, 
-               recoveries and deaths can be better visualised by viewing the graphs on the log scale. Looking at the 
-               relative recovery and death rate graph, the death rate appears to be much lower than the worldwide rate of 
-               4% and has not grown at the same pace as the recovery rate. A spike is seen in the recovery rate in mid-late
-               May after the discharge policy was changed which allowed mild cases without fever to be discharged sans testing
-               negative."""],
+            html.P(["""There is a weekly seasonal pattern to the number of new cases reported which can be smoothed 
+            by taking a 7-day moving average. Another thing to note is that by the end of August the number of 
+            recoveries a day had almost caught up to the number of new cases before another wave of cases in 
+            September. The relative increase in confirmed cases, recoveries and deaths can be better visualised by 
+            viewing the graphs on the log scale. Looking at the relative recovery and death rate graph, 
+            the death rate appears to be much lower than the worldwide rate of 4% and has not grown at the same pace 
+            as the recovery rate. A spike is seen in the recovery rate in mid-late May after the discharge policy was 
+            changed which allowed mild cases without fever to be discharged sans testing negative."""],
                    style={'margin-top': '10px', 'margin-left': '25px', 'margin-right': '25px', 'textAlign': 'justify'}),
         ]),
 
@@ -179,14 +178,17 @@ def serve_layout():
                                                                  'align-items': 'center', 'justify-content': 'center',
                                                                  'margin-left': '30px', 'margin-right': '15px'}
                       )]),
-            html.P(["""The Seasonality in the data seems to be due to a decrease in the collection of Testing Samples on
-        the weekends. Another important thing to note is that ICMR releases the number of Testing Samples collected and 
-        not the number of individuals tested. There is also a problem of data consistency as on certain days multiple bulletins are
-        issued. Only the last numbers have been kept in such cases. A substantial increase in the number
-         of Testing Samples collected is seen from the middle of July. Looking at the relative metrics, the positive 
-         rate can be used to determine whether enough tests are being done and has seen a decline since the increase in 
-         testing. The tests per 1000 people is useful for tracking the penetration of the testing relative to the population.
-        """], style={'margin-top': '10px', 'margin-left': '25px', 'margin-right': '25px', 'textAlign': 'justify'}),
+            html.P(["""The Seasonality in the data seems to be due to a decrease in the collection of Testing Samples 
+            on the weekends. Another important thing to note is that ICMR releases the number of Testing Samples 
+            collected and not the number of individuals tested. There is also a problem of data consistency as on 
+            certain days multiple bulletins are issued. Only the last numbers have been kept in such cases. A 
+            substantial increase in the number of Testing Samples collected is seen from the middle of July. Looking 
+            at the relative metrics, the positive rate can be used to determine whether enough tests are being done 
+            and has seen a decline since the increase in testing. The tests per 1000 people is useful for tracking 
+            the penetration of the testing relative to the population."""], style={'margin-top': '10px',
+                                                                                   'margin-left': '25px',
+                                                                                   'margin-right': '25px',
+                                                                                   'textAlign': 'justify'}),
 
         ]),
 
@@ -217,14 +219,14 @@ def serve_layout():
                                                                                  'margin-left': '15px',
                                                                                  'margin-right': '15px'}),
             html.P(["""The Logistic function is an example of a sigmoid curve and was devised as a model of population 
-        growth. Epidemic growth is also observed to follow a logistic curve where the number of infected rises 
-        exponentially and reaches a linear inflection point before gradually decreasing. Logistic functions have 
-        applications in ecological modelling, medicine and especially in statistics and machine learning.""",
-                    """The logistic function is defined as :  \\begin{gather} f{(x)} = \\frac{L}{1 + e^{-k(x - x_0)}} \end{gather}
-        $ \\text{Where, } x_0 = x\\text{ is the value of the sigmoids midpoint, } L =\\text{the curve's maximum value and, }$""",
-                    html.Br(),
-                    """ $ k =\\text{the logistic growth rate or steepness of the curve}$ """
-                       , html.Br(), html.Br(), """A logistic curve is observed in the case of China, but it is not 
+            growth. Epidemic growth is also observed to follow a logistic curve where the number of infected rises 
+            exponentially and reaches a linear inflection point before gradually decreasing. Logistic functions have 
+            applications in ecological modelling, medicine and especially in statistics and machine learning.""",
+                    """The logistic function is defined as : 
+                     \\begin{gather} f{(x)} = \\frac{L}{1 + e^{-k(x - x_0)}} \end{gather} 
+                     $ \\text{Where, } x_0 = x\\text{ is the value of the sigmoids midpoint, } L =\\text{the curve's maximum value and, }$""",
+                    html.Br(), """ $ k =\\text{the logistic growth rate or steepness of the curve}$ """, html.Br(),
+                    html.Br(), """A logistic curve is observed in the case of China, but it is not 
                    reasonable to assume that all countries will follow similar trajectories, there may be multiple 
                    waves of exponential growth or the steepness of the curve may differ. Looking at the cumulative 
                    cases in India the next important tasks are determining whether the initial exponential growth has 
@@ -249,9 +251,32 @@ def serve_layout():
             # Actual plot with the forecast
             dcc.Graph(
                 id='fit-logistic', ),
-            html.P(id='fit-logistic-stats',
+            html.P(["""The logistic curve seems to fit the general trend of the growth. For the validation set the 
+            $ R^2 $ and Mean Absolute Error are shown in the table below. A simple logistic curve fit will not be able 
+            to account for seasonality or complex interactions. An important thing to note is that $ R^2 $ is not the
+             most suitable metric for time-series data and can give misleading results, more focus is on optimizing for 
+             the MAE. The results here serve as a baseline for future models. Using the fit parameters of the function, 
+            the Max Number of cases or Peak of the curve L and the Inflection point of the growth $x_0$ days since 30th 
+            of Jan have also been estimated in the table below. Another thing to note is that the curve is fit on Cumulative
+            Cases and the predictions have been differenced to show the predicted Daily Confirmed Cases. The evaluation 
+             metrics have been calculated on these daily predictions and the transformation looses a data point."""],
                    style={'margin-top': '10px', 'margin-left': '25px', 'margin-right': '25px', 'textAlign': 'justify',
                           'margin-bottom': '5px'}),
+            html.Div([dash_table.DataTable(
+                id='Logistic-fit-table',
+                columns=[
+                    {'name': 'Model', 'id': 'Model'},
+                    {'name': 'R^2', 'id': 'R^2'},
+                    {'name': 'MAE', 'id': 'MAE'},
+                    {'name':  'Predicted Cumulative Cases', 'id': 'L'},
+                    {'name': 'Predicted Date of Inflection Point', 'id': 'x0'}],
+                data=[],
+                sort_action="native",
+                style_header={
+                    'fontWeight': 'bold'
+                }
+
+            )], style={'margin-left': '25%', 'margin-right': '25%'}),
             html.P(
                 ['References : ', html.A('[1] 3Blue1Brown', href='https://www.youtube.com/watch?v=Kas0tIxDvrg'),
                  html.Br(),
@@ -265,19 +290,19 @@ def serve_layout():
             html.H4(children='Growth Factor of Epidemic : Finding the Inflection Point', style={'textAlign': 'left',
                                                                                                 'margin-top': '15px',
                                                                                                 'margin-left': '15px',
-                                                                                                'margin-right': '15px'}),
-            html.P(["""The growth factor is a measure of exponential growth of an epidemic. The Growth Factor
+                                                                                                'margin-right': '15px'})
+            , html.P(["""The growth factor is a measure of exponential growth of an epidemic. The Growth Factor
         on day n is defined as : \\begin{gather} Gf_{n} = \\frac{\Delta{C_{n}}}{\Delta{C_{n-1}}} \end{gather}
         I.e. the ratio of change in total or cumulative confirmed cases on day n and day n-1. This can also be framed 
         as the ratio of the number of new cases on day n and day n-1.
          The metric has a few helpful properties : """,
-                    html.Br(), """
+                      html.Br(), """
         1. A $ Gf > 1 $ signifies exponential growth in the number of new cases.""", html.Br(), """ 
-        2. A $ Gf < 1 $ signifies decline or decay in the number of new cases.""", html.Br(), """
-        3. A $ Gf = 1 $ is the inflection point and signifies the point where exponential growth of the epidemic has stopped 
-        and is now constant."""
-                    ],
-                   style={'margin-left': '25px', 'margin-right': '25px', 'textAlign': 'justify'}),
+        2. A $ Gf < 1 $ signifies decline or decay in the number of new cases.""", html.Br(), """3. A $ Gf = 1 $ is 
+        the inflection point and signifies the point where exponential growth of the epidemic has stopped and is now 
+        constant. """
+                      ],
+                     style={'margin-left': '25px', 'margin-right': '25px', 'textAlign': 'justify'}),
             dcc.Graph(
                 id='national-growth-factor'),
             dcc.Dropdown(
@@ -336,7 +361,8 @@ def serve_layout():
                                                                                                   'margin-left': '15px',
                                                                                                   'margin-right': '15px'}),
                   html.P(["""The growth ratio is a metric that tracks the percentage Increase in total cumulative 
-              cases from one day to the next. The growth ratio on day n is defined as : \\begin{gather} Gr_{n} = \\frac{{C_{n}}}{{C_{n-1}}} \end{gather}
+              cases from one day to the next. The growth ratio on day n is defined as :
+               \\begin{gather} Gr_{n} = \\frac{{C_{n}}}{{C_{n-1}}} \end{gather}
                I.e. the ratio of total or cumulative confirmed cases on day n and 
               day n-1. The metric is not that interesting in itself but can be used to forecast the number of new 
               cases."""],
@@ -410,13 +436,15 @@ def serve_layout():
                                 'textAlign': 'justify'}),
 
                   dcc.Graph(id="national-growth-ratio-cases-preds")
-
+                  ## TO DO
 
                   ## sub-Section - Using Growth Ratio to predict cases,
                   ## Table of performance of this prediction
 
                   ## Finally Using Growth Ratio and Factor as features to final Ridge Regression model.
-                  ## Compared to baseline SARIMA model
+                  ## Compared to all models
+                  ## Conclude that non-ML models can also perform well with relatively less tuning.
+
                   ]),
 
         ###### important for latex ######
@@ -436,7 +464,7 @@ app.layout = serve_layout
      Output('national-growth-factor', 'figure'),
      Output('state-stats', 'figure'),
      Output('fit-logistic', 'figure'),
-     Output('fit-logistic-stats', 'children'),
+     Output('Logistic-fit-table', 'data'),
      Output('forecast-growth-factor', 'figure'),
      Output('growth-factor-table', 'data'),
      Output('national-growth-ratio', 'figure'),
@@ -475,18 +503,14 @@ def fetch_plots(value, value_scale, value_test, value_test_scale, value_gf, valu
 
     # forecast for logistic curve fit
     figure_log_curve, score_sigmoid_fit = forecast_curve_fit(india_data, x_data, y_data)
-    # text with validation metrics for logistic curve
-    log_fit_text = """The logistic curve seems to fit the general trend of the growth. For the validation set the """, \
-                   html.B('$R^2$ is {:.4f}.'.format(score_sigmoid_fit['R^2'])), """ The """, \
-                   html.B('Mean Absolute Error of {} '.format(int(score_sigmoid_fit['MAE']))), """ should show a less 
-                   optimistic result as a simple logistic curve fit will not be able to account for seasonality or 
-                   complex interactions. An important thing to note is that $R^2$ is not the most suitable metric for 
-                   time-series data and can give misleading results, more focus is on optimizing for the MAE.
-                   The results here serve as a baseline for future models.""", html.Br(), """
-                   Using the fit parameters of the function, it can be estimated that the Max Number of cases
-                   or Peak of the curve will be {} cases. The Inflection point of the growth will be reached 
-                   {} days after the 30th of Jan.""".format(int(score_sigmoid_fit['params']['L']),
-                                                            int(score_sigmoid_fit['params']['x0']))
+
+    # Dict with validation metrics for logistic curve
+    # time delta since start of series
+    date_inflection = (india_data.index.min() + pd.Timedelta(days=int(score_sigmoid_fit['params']['x0']))).date().strftime('%d-%m-%Y')
+    # required structure (List of dicts with each dict being a row) [{}, {}]
+    log_fit_metrics = [{'Model': 'Logistic Curve Fit', 'R^2': round(score_sigmoid_fit['R^2'], 4),
+                        'MAE': round(score_sigmoid_fit['MAE'], 4),
+                        'L': int(score_sigmoid_fit['params']['L']), 'x0': date_inflection}]
 
     # forecasts for growth factor
     figure_forecast_gf, score_gf_fit, eval_metrics_gf = forecast_growth_factor(india_data)
@@ -501,8 +525,8 @@ def fetch_plots(value, value_scale, value_test, value_test_scale, value_gf, valu
 
     figure_forecast_cases_gr = forecast_cases_growth_ratio(india_data, preds_gr)
 
-    return figure, figure_test, figure_gf, figure_state, figure_log_curve, log_fit_text, figure_forecast_gf, eval_metrics_gf \
-        , fig_gr, figure_forecast_gr, eval_metrics_gr, figure_forecast_cases_gr
+    return figure, figure_test, figure_gf, figure_state, figure_log_curve, log_fit_metrics, figure_forecast_gf, \
+           eval_metrics_gf, fig_gr, figure_forecast_gr, eval_metrics_gr, figure_forecast_cases_gr
 
 
 if __name__ == '__main__':
