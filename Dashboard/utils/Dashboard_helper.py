@@ -549,7 +549,8 @@ def forecast_curve_fit(india_data, x_data, y_data):
 
     # Getting validation score on confirmed Daily cases by taking diff of prediction.
     score['R^2'] = r2_score(np.diff(y_test, n=1).astype(int), np.diff(sigmoid.predict(x_test), n=1).astype(int))
-    score['MAE'] = mean_absolute_error(np.diff(y_test, n=1).astype(int), np.diff(sigmoid.predict(x_test), n=1).astype(int))
+    score['MAE'] = mean_absolute_error(np.diff(y_test, n=1).astype(int),
+                                       np.diff(sigmoid.predict(x_test), n=1).astype(int))
     score['params'] = sigmoid.get_sigmoid_params()
 
     # make everything other than every 5th value nan
@@ -879,7 +880,7 @@ def forecast_growth_ratio(india_data):
 
 
 def forecast_cases_growth_ratio(india_data, preds_gr):
-    """"PREDICTIONS FOR CASES"""
+    """"PREDICTIONS FOR CASES USING PREDICTED GROWTH RATIO"""
 
     columns_key = ['ARModel', 'GammaReg', 'PoissonReg', 'TrueGR']
 
@@ -898,21 +899,76 @@ def forecast_cases_growth_ratio(india_data, preds_gr):
     india_DailyConfirmedValidation = india_data_preds.DailyConfirmed[-validation_days:].copy()
     india_DailyConfirmedValidation = india_DailyConfirmedValidation.to_frame('ActualCases')
 
-    # iterating over DF and multiplying (i-1) days totalconf * predicted growth ratio for next day (i)= toatal conf
-    # day (i)
+    # iterating over DF and multiplying (i-1) days totalconf * predicted growth ratio for next day (i)= toatal conf day (i)
 
     for model in columns_key[:-1]:
         for i in range(-validation_days, 0):
-            # Logic in notebook
-            # copy with warning suppressed, I'm not assigning anything to india_data_preds[model].iloc[]
+            # print(f' Total Cases {india_data_preds.index[i+1]} = Total Cases{india_data.TotalConfirmed.index[i]} * GR {india_data_preds[model].index[i+1]}')
             india_data_preds.TotalConfirmed.iloc[i + 1] = india_data.TotalConfirmed.iloc[i] * \
                                                           india_data_preds[model].iloc[i]
-
+            # print(f' Daily Cases {india_data_preds.DailyConfirmed.index[i+1]} = Total Cases{india_data_preds.TotalConfirmed.index[i+1]} - Total Cases {india_data_preds.TotalConfirmed.index[i]}')
             india_data_preds.DailyConfirmed.iloc[i + 1] = india_data_preds.TotalConfirmed.iloc[i + 1] - \
                                                           india_data_preds.TotalConfirmed.iloc[i]
             india_DailyConfirmedValidation[model + 'DailyConfirmed'] = india_data_preds.DailyConfirmed.copy()
 
     days_lost_feat_prep = 2
     india_DailyConfirmedValidation = india_DailyConfirmedValidation.iloc[days_lost_feat_prep:]
-    fig = india_DailyConfirmedValidation.plot()
-    return fig
+
+    ### Eval Metrics for Predicted Cases
+    # Evaluation metrics for the models
+    eval_metrics = []
+
+    for res in india_DailyConfirmedValidation.columns[1:]:
+        scores = {}
+        scores['Model'] = res.split("DailyConfirmed")[0]+'GR'
+        scores['R^2'] = round(
+            r2_score(india_DailyConfirmedValidation['ActualCases'], india_DailyConfirmedValidation[res]), 4)
+        scores['MAE'] = round(
+            mean_absolute_error(india_DailyConfirmedValidation['ActualCases'], india_DailyConfirmedValidation[res]), 4)
+
+        eval_metrics.append(scores)
+
+    ### Figures
+
+    fig = india_DailyConfirmedValidation['ActualCases'].plot(
+        title="Validation Set Daily Cases Predictions using Growth Ratio",
+        labels=dict(index="", value="Number of Cases"))
+    fig.update_traces(line=dict(width=4))
+
+    fig.add_scatter(x=india_DailyConfirmedValidation.index,
+                    y=india_DailyConfirmedValidation['ARModelDailyConfirmed'], name='Autoregressive(7)',
+                    line=dict(
+                        color="crimson",
+                        dash="dashdot",
+                    ))
+    fig.add_scatter(x=india_DailyConfirmedValidation.index,
+                    y=india_DailyConfirmedValidation['GammaRegDailyConfirmed'], name='Gamma Regression',
+                    line=dict(
+                        color="lightseagreen",
+                        dash="dashdot",
+                        width=2
+                    ))
+    fig.add_scatter(x=india_DailyConfirmedValidation.index,
+                    y=india_DailyConfirmedValidation['PoissonRegDailyConfirmed'], name='Poisson Regression',
+                    line=dict(
+                        color="DarkViolet",
+                        dash="dashdot",
+                    ))
+
+    fig.update_layout(legend=dict(
+        orientation="h",
+        yanchor="bottom",
+        y=1,
+        xanchor="right",
+        x=1
+    ), legend_title_text='',
+        margin=dict(
+            b=0,
+            t=50,
+            l=50,
+            r=50,
+            pad=1
+        ),
+    )
+    fig.update_xaxes(title_text="")
+    return fig, eval_metrics

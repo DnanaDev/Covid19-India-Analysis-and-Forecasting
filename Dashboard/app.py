@@ -259,7 +259,7 @@ def serve_layout():
             the Max Number of cases or Peak of the curve L and the Inflection point of the growth $x_0$ days since 30th 
             of Jan have also been estimated in the table below. Another thing to note is that the curve is fit on Cumulative
             Cases and the predictions have been differenced to show the predicted Daily Confirmed Cases. The evaluation 
-             metrics have been calculated on these daily predictions and the transformation looses a data point."""],
+             metrics have been calculated on these daily predictions and the transformation loses a data point."""],
                    style={'margin-top': '10px', 'margin-left': '25px', 'margin-right': '25px', 'textAlign': 'justify',
                           'margin-bottom': '5px'}),
             html.Div([dash_table.DataTable(
@@ -428,22 +428,38 @@ def serve_layout():
                   $R^2$ score is not a suitable metric for evaluating GLMs, but is still presented for consistency
                   in evaluating forecasts. The Gamma Regression model is the only regression model that is able 
                   to  outperform the baseline AR model.""", html.H5('Using Growth Ratio to Forecast Cases'),
-                          """ The predicted Growth Ratio can be used to predicted the number of Total and Daily 
-                          cases by a simple transformation : \\begin{gather} \hat{C_{n}} = C_{n-1}\\times{\hat{Gr_{n}}}\end{gather}"""],
+                          """ The predicted Growth Ratio for day n can simply be multiplied with the Total cases of the
+                           previous day to get the predicted Total confirmed cases on day n:
+                            \\begin{gather} \hat{C_{n}} = C_{n-1}\\times{\hat{Gr_{n}}}\end{gather}
+                            The predictions can then be differenced to get the predicted Daily cases on day n+1. This 
+                            approach will lead to the loss of two data points during inference as the feature engineering
+                            step also used the 1st difference of the 1st Lag as a feature."""],
                          style={'margin-top': '10px',
                                 'margin-left': '25px',
                                 'margin-right': '25px',
                                 'textAlign': 'justify'}),
 
-                  dcc.Graph(id="national-growth-ratio-cases-preds")
-                  ## TO DO
+                  dcc.Graph(id="national-growth-ratio-cases-preds"),
+                  html.Div([dash_table.DataTable(
+                      id='growth-ratio-cases-table',
+                      columns=[
+                          {'name': 'Model', 'id': 'Model'},
+                          {'name': 'R^2', 'id': 'R^2'},
+                          {'name': 'MAE', 'id': 'MAE'},
+                      ],
+                      data=[],
+                      sort_action="native",
+                      style_header={
+                          'fontWeight': 'bold'
+                      }
 
-                  ## sub-Section - Using Growth Ratio to predict cases,
-                  ## Table of performance of this prediction
+                  )], style={'margin-left': '25%', 'margin-right': '25%'}),
+                  ## TO DO
 
                   ## Finally Using Growth Ratio and Factor as features to final Ridge Regression model.
                   ## Compared to all models
                   ## Conclude that non-ML models can also perform well with relatively less tuning.
+                  ## However with the limited available data/features. Better to stick to traditional models.
 
                   ]),
 
@@ -470,7 +486,8 @@ app.layout = serve_layout
      Output('national-growth-ratio', 'figure'),
      Output('national-growth-ratio-preds', 'figure'),
      Output('growth-ratio-table', 'data'),
-     Output('national-growth-ratio-cases-preds', 'figure')],
+     Output('national-growth-ratio-cases-preds', 'figure'),
+     Output('growth-ratio-cases-table', 'data')],
     [Input('nat-graph-selector', 'value'),
      Input('radio-national-scale-selector', 'value'),
      Input('Testing-graph-drop', 'value'),
@@ -523,10 +540,10 @@ def fetch_plots(value, value_scale, value_test, value_test_scale, value_gf, valu
 
     figure_forecast_gr, eval_metrics_gr, preds_gr = forecast_growth_ratio(india_data)
 
-    figure_forecast_cases_gr = forecast_cases_growth_ratio(india_data, preds_gr)
+    figure_forecast_cases_gr, eval_metrics_cases_gr = forecast_cases_growth_ratio(india_data, preds_gr)
 
     return figure, figure_test, figure_gf, figure_state, figure_log_curve, log_fit_metrics, figure_forecast_gf, \
-           eval_metrics_gf, fig_gr, figure_forecast_gr, eval_metrics_gr, figure_forecast_cases_gr
+           eval_metrics_gf, fig_gr, figure_forecast_gr, eval_metrics_gr, figure_forecast_cases_gr, eval_metrics_cases_gr
 
 
 if __name__ == '__main__':
