@@ -4,6 +4,8 @@
 # Ignore Resources Folder
 /Resources
 /Research.DS_Store
+/Backup
+/Misc.
 
 /.ipynb_checkpoints
 /.idea
