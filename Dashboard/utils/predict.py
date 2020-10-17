@@ -86,19 +86,32 @@ def growth_factor_features(gf_df):
     return gf_df
 
 
-class PredictGrowthFactor():
+class RegressionModelsGrowthFactor():
     """ Class to return predictions for growth factor by multiple
-    estimators. No parameter, estimator validation done. Returns a dictionary with results
-    for all the estimators.
+    estimators. Feature scaling done, hardcoded hyperparameters.
+    No parameter, estimator validation done. Returns a dictionary with results
+    for all the estimators. Allows Recursive multi-step forecast
     """
 
-    def __init__(self):
+    def __init__(self, recursive_forecast=True):
+
+        # optional parameters
+        self.recursive_forecast = recursive_forecast
+
+        # dictionary for results.
+        self.results = {}
+
         # initialising models
         self.lin_reg = LinearRegression()
-        # poly reg - regularisation hyper-parameter alpha hardcoded from manual hyp. optim.
-        # Since ridge regression applies penalty, feature scaling is required. Thus standardised data.
+
+        # Ridge Reg with polynomials of 2nd order, hardcoded
+
         self.pipe_gf = Pipeline([('poly', PolynomialFeatures(degree=2)),
-                                 ('scale', StandardScaler()), ('ridge', Ridge(alpha=21))])
+                                 ('scale', StandardScaler()), ('ridge', Ridge(alpha=1.0))])
+
+        # default state of data None - Also used to check if model is fit.
+        self.x = None
+        self.y = None
 
     def fit(self, x, y):
         self.x = x
@@ -112,11 +125,50 @@ class PredictGrowthFactor():
         self.pipe_gf.fit(x, y)
 
     def predict(self, X):
-        # dictionary for results.
-        self.results = {}
-        # storing predictions
-        self.results['Linear_Regression'] = self.lin_reg.predict(X)
-        self.results['Ridge_Regression'] = self.pipe_gf.predict(X)
+        # check if estimators fit - this isn't entirely correct, One could change x to a string
+        # after defining an instance and the check would pass, check for exact class instance and not
+        # what its not.
+        if self.x is None or self.y is None:
+            raise NotFittedError("Estimator instance is not fitted yet. Call 'fit'")
+
+        ### Recursive Multi-Step Predictions if Lag features used ###
+
+        if self.recursive_forecast:
+            # print('Lagged features - multi-step forecast')
+            self.x_test_lin = X.astype(np.float64).copy()
+            self.x_test_ridge = X.astype(np.float64).copy()
+
+            # faster to append to a list
+            self.pred_list_lin = []
+            self.pred_list_ridge = []
+
+            # Recursively predicting next time-step and replacing back into test data
+            for i in np.arange(X.shape[0]):
+                self.preds_lin = self.lin_reg.predict(self.x_test_lin.iloc[0, :].values.reshape(1, -1))
+                self.preds_ridge = self.pipe_gf.predict(self.x_test_ridge.iloc[0, :].values.reshape(1, -1))
+
+                # saving forecast
+                self.pred_list_lin.append(self.preds_lin)
+                self.pred_list_ridge.append(self.preds_ridge)
+
+                # shift the lagged values in test DF by 1
+                self.x_test_lin = self.x_test_lin.shift(periods=-1)
+                self.x_test_ridge = self.x_test_ridge.shift(periods=-1)
+
+                # putting prediction back into first lag place for shifted df(day t+1)
+                self.x_test_lin.iloc[0, 0] = self.preds_lin
+                self.x_test_ridge.iloc[0, 0] = self.preds_ridge
+
+            # saving predictions in Dict
+            self.results['Linear_Regression'] = np.array(self.pred_list_lin).ravel()
+            self.results['Ridge_Regression'] = np.array(self.pred_list_ridge).ravel()
+
+            # If no lag features used
+        elif not self.recursive_forecast:
+            self.results['Linear_Regression'] = self.lin_reg.predict(X)
+            self.results['Ridge_Regression'] = self.pipe_gf.predict(X)
+
+        # storing baseline last month mean predictions
         self.results['Last_Month_Mean'] = np.repeat(self.mean, len(X))
 
         return self.results
@@ -263,18 +315,29 @@ def train_test_split_gr(x, y, validation_days=30):
     y_train = target[:-z]
     y_test = target[-z:]
 
-    return x_train.values, x_test.values, y_train.values.ravel(), y_test.values.ravel()
+    return x_train, x_test, y_train.values.ravel(), y_test.values.ravel()
 
 
 class RegressionModelsGrowthRatio():
-    """Class to return predictions for growth ratio by multiple
-    regression estimators. Contains Pipelines with for creating polynomial hyperparameters, feature scaling done,
-    hardcoded hyperparameters. No parameter, estimator validation done. Returns a dictionary with results
-    for all the estimators. Not inheriting Sklearn regression class.
+    """Class to return forecasts for growth ratio by several
+    regression estimators :
     1.Linear Regression. 2. Poisson Regression. 3. Gamma Regression.
+    Can accept lagged target as input features and provides recursive forecast in predict method.
+    The lag features t-1, t-2,..., t-n must in the first n columns of the input feature matrix in order.
+    args:
+    correct_glm_bounds = bool; if passed corrects target growth ratio range to glm bounds [0, +\inf]
+    recursive_forecast = bool; For letting the estimators know that lagged target features are being used
+    and forecast needs to be done in a recursive approach where forecast for day t are used as features on day t+1.
+    Contains separate Pipelines for each model with hardcoded parameters for polynomial features, scaling.
+    Returns: a dictionary with results for all the estimators.
+
     """
 
-    def __init__(self):
+    def __init__(self, correct_glm_bounds=True, recursive_forecast=False):
+
+        # optional parameters
+        self.correct_glm_bounds = correct_glm_bounds
+        self.recursive_forecast = recursive_forecast
 
         # pipelines for the models.
         # Scaling for Poisson and Gamma Regression models, they use L2 regularization penalty
@@ -310,7 +373,7 @@ class RegressionModelsGrowthRatio():
         self.pipe_reg_gamm.fit(x, y)
         self.pipe_lin_reg_ar.fit(x_ar, y_ar)
 
-    def predict(self, X, X_ar, correct_glm_bounds=True):
+    def predict(self, X, X_ar):
         # check if estimators fit - this isn't entirely correct
 
         # iterables of rules
@@ -319,13 +382,50 @@ class RegressionModelsGrowthRatio():
         if any(rules):
             raise NotFittedError("Estimator instance is not fitted yet. Call 'fit'")
 
-            # storing predictions
+            # storing predictions of AR model
+        # print('Ar model preds')
         self.results['ARModel'] = self.pipe_lin_reg_ar.predict(X_ar)
-        self.results['PoissonReg'] = self.pipe_reg_pois.predict(X)
-        self.results['GammaReg'] = self.pipe_reg_gamm.predict(X)
+
+        ### Recursive Multi-Step Predictions if Lag features used ###
+
+        if self.recursive_forecast:
+            # print('Lagged features - multi-step forecast')
+            self.x_test_gam = X.astype(np.float64).copy()
+            self.x_test_poi = X.astype(np.float64).copy()
+
+            # faster to append to a list
+            self.pred_list_gam = []
+            self.pred_list_poi = []
+
+            # Recursively predicting next time-step and replacing back into test data
+            for i in np.arange(X.shape[0]):
+                self.preds_gamm = self.pipe_reg_gamm.predict(self.x_test_gam.iloc[0, :].values.reshape(1, -1))
+                self.preds_poi = self.pipe_reg_pois.predict(self.x_test_poi.iloc[0, :].values.reshape(1, -1))
+
+                # saving forecast
+                self.pred_list_gam.append(self.preds_gamm)
+                self.pred_list_poi.append(self.preds_poi)
+
+                # shift the lagged values in test DF by 1
+                self.x_test_gam = self.x_test_gam.shift(periods=-1)
+                self.x_test_poi = self.x_test_poi.shift(periods=-1)
+
+                # putting prediction back into first lag place for shifted df(day t+1)
+                self.x_test_gam.iloc[0, 0] = self.preds_gamm
+                self.x_test_poi.iloc[0, 0] = self.preds_poi
+
+            # saving predictions in Dict
+            self.results['GammaReg'] = np.array(self.pred_list_gam).ravel()
+            self.results['PoissonReg'] = np.array(self.pred_list_poi).ravel()
+
+        # when no lag features used. Simple forecast
+        elif self.recursive_forecast == False:
+            # print('No Lagged features')
+            self.results['PoissonReg'] = self.pipe_reg_pois.predict(X)
+            self.results['GammaReg'] = self.pipe_reg_gamm.predict(X)
 
         # move back to actual bounds before correction for GLM
-        if correct_glm_bounds:
+        if self.correct_glm_bounds:
             self.results['ARModel'] += 1
             self.results['PoissonReg'] += 1
             self.results['GammaReg'] += 1

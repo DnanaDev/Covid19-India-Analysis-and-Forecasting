@@ -7,7 +7,7 @@ from plotly.subplots import make_subplots
 import json
 from urllib.request import urlopen
 import datetime
-from .predict import SigmoidCurveFit, growth_factor_features, PredictGrowthFactor, TimeSeriesGrowthFactor, \
+from .predict import SigmoidCurveFit, growth_factor_features, RegressionModelsGrowthFactor, TimeSeriesGrowthFactor, \
     GrowthRatioFeatures, perf_adf, train_test_split_gr, RegressionModelsGrowthRatio
 from sklearn.metrics import mean_absolute_error, r2_score
 
@@ -650,7 +650,7 @@ def forecast_growth_factor(india_data):
     y_test = data['Growth_Factor'][-z:]
 
     # Create Object of SuperPredictor Regression and get predictions
-    estimators = PredictGrowthFactor()
+    estimators = RegressionModelsGrowthFactor()
     estimators.fit(x_train, y_train)
 
     # dictionary of results
@@ -752,15 +752,14 @@ def india_growth_ratio(india_data):
 
 def forecast_growth_ratio(india_data):
     # Creating Growth Ratio Features using class.
-    trf = GrowthRatioFeatures(num_lagged_feats=7, num_diff_feats=1, date_feats=True, glm_bounds=True)
+    trf = GrowthRatioFeatures(num_lagged_feats=7, num_diff_feats=0, date_feats=True, glm_bounds=True)
 
-    # DATA - FOR REGRESSION MODELS
+    ### DATA - FOR REGRESSION MODELS
     x, y = trf.transform(india_data.TotalConfirmed[41:])
     x_train, x_test, y_train, y_test = train_test_split_gr(x, y, validation_days=30)
     # perform ADF test
-    if perf_adf(y)[1] > 0.05:
-        # this should be a log
-        print('WARNING : Growth Ratio is Non-Stationary Series')
+    #if perf_adf(y)[1] < 0.05:
+    #    print('Stationary Series')
 
     # DATA - FOR AR(7) MODEL
     trf_ar = GrowthRatioFeatures(num_lagged_feats=7, num_diff_feats=0, date_feats=False, glm_bounds=True)
@@ -768,38 +767,42 @@ def forecast_growth_ratio(india_data):
     x_ar, y_ar = trf_ar.transform(india_data.TotalConfirmed[41:])
     x_train_ar, x_test_ar, y_train_ar, y_test_ar = train_test_split_gr(x_ar, y_ar, validation_days=30)
     # perform ADF test
-    if perf_adf(y_ar)[1] > 0.05:
-        print('WARNING : Growth Ratio is Non-Stationary Series')
+    #if perf_adf(y_ar)[1] < 0.05:
+    #    print('Stationary Series')
 
     #### MODELS ###
 
-    reg_models = RegressionModelsGrowthRatio()
+    reg_models = RegressionModelsGrowthRatio(recursive_forecast=True)
     reg_models.fit(x_train, y_train, x_train_ar, y_train_ar)
 
     # predictions for validation set
-    preds_valid = reg_models.predict(x_test, x_test_ar)
+    preds_valid = reg_models.predict(x_test, x_test_ar).copy()
     # Evaluation metrics for the models
     eval_metrics = []
     for res in preds_valid.keys():
         scores = {}
         scores['Model'] = res
-        scores['R2'] = round(r2_score(y_test, preds_valid[res] - 1), 4)
+        scores['R2'] = round(r2_score(y_test, preds_valid[res] - 1), 7)
         scores['MAE'] = round(mean_absolute_error(y_test, preds_valid[res] - 1), 7)
 
         eval_metrics.append(scores)
 
+    preds_valid['TrueGR'] = y_test + 1
+    preds_valid['index'] = x_test.index
+
     # Predictions - over entire dataset.
-    preds = reg_models.predict(x.dropna(), x_ar.dropna())
+    reg_models.recursive_forecast = False
+    preds = reg_models.predict(x.dropna(), x_ar.dropna()).copy()
 
     # add trueGR to dict (back in actual scale)
     preds['TrueGR'] = np.concatenate((y_train, y_test)) + 1
     # Save the date-time index.
     preds['index'] = x.dropna().index
 
-    ### FIGURE ###
+    ### FIGURES ###
 
     fig = make_subplots(rows=1, cols=2,
-                        subplot_titles=("Fit over entire Data",
+                        subplot_titles=("Models fit to Growth Ratio",
                                         "Validation Set Predictions for Growth Ratio"),
                         column_widths=[0.5, 0.5],
                         horizontal_spacing=0.06)
@@ -810,9 +813,9 @@ def forecast_growth_ratio(india_data):
     fig_1.update_traces(line=dict(width=10, color='grey'), opacity=.5)
 
     fig_1.add_trace(go.Scatter(x=preds['index'], y=preds['ARModel'], name='ARModel',
-                               line=dict(width=4, color='lightseagreen', dash="solid"), visible="legendonly"))
+                               line=dict(width=4, color='lightseagreen', dash="solid")))
     fig_1.add_trace(go.Scatter(x=preds['index'], y=preds['PoissonReg'], name='PoissonReg',
-                               line=dict(width=2, color='crimson', dash="solid"), opacity=.8))
+                               line=dict(width=2, color='crimson', dash="solid"), opacity=.8, visible="legendonly"))
     fig_1.add_trace(go.Scatter(x=preds['index'], y=preds['GammaReg'], name='GammaReg',
                                line=dict(width=2, color='DarkViolet', dash="solid"), visible="legendonly"))
     fig_1.update_layout(shapes=[
@@ -832,15 +835,15 @@ def forecast_growth_ratio(india_data):
     ### 2nd FIGURE ###
 
     fig_2 = go.Figure()
-    fig_2.add_trace(go.Scatter(x=preds['index'][-30:], y=preds['TrueGR'][-30:], name='TrueGR'))
+    fig_2.add_trace(go.Scatter(x=preds_valid['index'][-30:], y=preds_valid['TrueGR'][-30:], name='TrueGR'))
 
     fig_2.update_traces(line=dict(width=None, color='grey'), opacity=.5)
 
-    fig_2.add_trace(go.Scatter(x=preds['index'][-30:], y=preds['ARModel'][-30:], name='ARModel',
+    fig_2.add_trace(go.Scatter(x=preds_valid['index'][-30:], y=preds_valid['ARModel'], name='ARModel',
                                line=dict(width=None, color='lightseagreen', dash="solid")))
-    fig_2.add_trace(go.Scatter(x=preds['index'][-30:], y=preds['PoissonReg'][-30:], name='PoissonReg',
+    fig_2.add_trace(go.Scatter(x=preds_valid['index'][-30:], y=preds_valid['PoissonReg'], name='PoissonReg',
                                line=dict(width=None, color='crimson', dash="solid")))
-    fig_2.add_trace(go.Scatter(x=preds['index'][-30:], y=preds['GammaReg'][-30:], name='GammaReg',
+    fig_2.add_trace(go.Scatter(x=preds_valid['index'][-30:], y=preds_valid['GammaReg'], name='GammaReg',
                                line=dict(width=None, color='DarkViolet', dash="solid")))
 
     fig_2['data'][0].showlegend = False
@@ -876,7 +879,7 @@ def forecast_growth_ratio(india_data):
     # Axis Titles
     fig.update_yaxes(title_text="Growth Ratio", row=1, col=1)
 
-    return fig, eval_metrics, preds
+    return fig,eval_metrics, preds_valid
 
 
 def forecast_cases_growth_ratio(india_data, preds_gr):
@@ -897,7 +900,7 @@ def forecast_cases_growth_ratio(india_data, preds_gr):
     india_data_preds = india_data[['TotalConfirmed', 'DailyConfirmed']].join(preds_df, how='right')
 
     india_DailyConfirmedValidation = india_data_preds.DailyConfirmed[-validation_days:].copy()
-    india_DailyConfirmedValidation = india_DailyConfirmedValidation.to_frame('ActualCases')
+    india_DailyConfirmedValidation = india_DailyConfirmedValidation.to_frame('ActualCases').copy()
 
     # iterating over DF and multiplying (i-1) days totalconf * predicted growth ratio for next day (i)= toatal conf day (i)
 
@@ -905,7 +908,7 @@ def forecast_cases_growth_ratio(india_data, preds_gr):
         for i in range(-validation_days, 0):
             # print(f' Total Cases {india_data_preds.index[i+1]} = Total Cases{india_data.TotalConfirmed.index[i]} * GR {india_data_preds[model].index[i+1]}')
             india_data_preds.TotalConfirmed.iloc[i + 1] = india_data.TotalConfirmed.iloc[i] * \
-                                                          india_data_preds[model].iloc[i]
+                                                          india_data_preds[model].iloc[i+1]
             # print(f' Daily Cases {india_data_preds.DailyConfirmed.index[i+1]} = Total Cases{india_data_preds.TotalConfirmed.index[i+1]} - Total Cases {india_data_preds.TotalConfirmed.index[i]}')
             india_data_preds.DailyConfirmed.iloc[i + 1] = india_data_preds.TotalConfirmed.iloc[i + 1] - \
                                                           india_data_preds.TotalConfirmed.iloc[i]
