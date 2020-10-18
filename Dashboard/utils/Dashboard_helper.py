@@ -8,8 +8,8 @@ import json
 from urllib.request import urlopen
 import datetime
 from .predict import SigmoidCurveFit, growth_factor_features, RegressionModelsGrowthFactor, TimeSeriesGrowthFactor, \
-    GrowthRatioFeatures, perf_adf, train_test_split_gr, RegressionModelsGrowthRatio
-from sklearn.metrics import mean_absolute_error, r2_score
+    GrowthRatioFeatures, perf_adf, train_test_split_gr, RegressionModelsGrowthRatio, mean_absolute_percentage_error
+from sklearn.metrics import mean_absolute_error, r2_score, mean_squared_error
 
 # Suppressing statsmodels warnings
 import warnings
@@ -549,8 +549,10 @@ def forecast_curve_fit(india_data, x_data, y_data):
 
     # Getting validation score on confirmed Daily cases by taking diff of prediction.
     score['R^2'] = r2_score(np.diff(y_test, n=1).astype(int), np.diff(sigmoid.predict(x_test), n=1).astype(int))
-    score['MAE'] = mean_absolute_error(np.diff(y_test, n=1).astype(int),
-                                       np.diff(sigmoid.predict(x_test), n=1).astype(int))
+    score['MAPE'] = mean_absolute_percentage_error(np.diff(y_test, n=1).astype(int),
+                                                   np.diff(sigmoid.predict(x_test), n=1).astype(int))
+    score['RMSE'] = mean_squared_error(np.diff(y_test, n=1).astype(int),
+                                       np.diff(sigmoid.predict(x_test), n=1).astype(int), squared=False)
     score['params'] = sigmoid.get_sigmoid_params()
 
     # make everything other than every 5th value nan
@@ -669,7 +671,8 @@ def forecast_growth_factor(india_data):
         scores = {}
         scores['Model'] = res
         scores['R^2'] = round(r2_score(y_test, preds[res]), 4)
-        scores['MAE'] = round(mean_absolute_error(y_test, preds[res]), 4)
+        scores['MAPE'] = round(mean_absolute_percentage_error(y_test, preds[res]), 4)
+        scores['RMSE'] = round(mean_squared_error(y_test, preds[res], squared=False), 4)
 
         eval_metrics.append(scores)
 
@@ -758,7 +761,7 @@ def forecast_growth_ratio(india_data):
     x, y = trf.transform(india_data.TotalConfirmed[41:])
     x_train, x_test, y_train, y_test = train_test_split_gr(x, y, validation_days=30)
     # perform ADF test
-    #if perf_adf(y)[1] < 0.05:
+    # if perf_adf(y)[1] < 0.05:
     #    print('Stationary Series')
 
     # DATA - FOR AR(7) MODEL
@@ -767,7 +770,7 @@ def forecast_growth_ratio(india_data):
     x_ar, y_ar = trf_ar.transform(india_data.TotalConfirmed[41:])
     x_train_ar, x_test_ar, y_train_ar, y_test_ar = train_test_split_gr(x_ar, y_ar, validation_days=30)
     # perform ADF test
-    #if perf_adf(y_ar)[1] < 0.05:
+    # if perf_adf(y_ar)[1] < 0.05:
     #    print('Stationary Series')
 
     #### MODELS ###
@@ -783,7 +786,8 @@ def forecast_growth_ratio(india_data):
         scores = {}
         scores['Model'] = res
         scores['R2'] = round(r2_score(y_test, preds_valid[res] - 1), 7)
-        scores['MAE'] = round(mean_absolute_error(y_test, preds_valid[res] - 1), 7)
+        scores['MAPE'] = round(mean_absolute_percentage_error(y_test, preds_valid[res] - 1), 7)
+        scores['RMSE'] = round(mean_squared_error(y_test, preds_valid[res] - 1, squared=False), 7)
 
         eval_metrics.append(scores)
 
@@ -879,7 +883,7 @@ def forecast_growth_ratio(india_data):
     # Axis Titles
     fig.update_yaxes(title_text="Growth Ratio", row=1, col=1)
 
-    return fig,eval_metrics, preds_valid
+    return fig, eval_metrics, preds_valid
 
 
 def forecast_cases_growth_ratio(india_data, preds_gr):
@@ -908,7 +912,7 @@ def forecast_cases_growth_ratio(india_data, preds_gr):
         for i in range(-validation_days, 0):
             # print(f' Total Cases {india_data_preds.index[i+1]} = Total Cases{india_data.TotalConfirmed.index[i]} * GR {india_data_preds[model].index[i+1]}')
             india_data_preds.TotalConfirmed.iloc[i + 1] = india_data.TotalConfirmed.iloc[i] * \
-                                                          india_data_preds[model].iloc[i+1]
+                                                          india_data_preds[model].iloc[i + 1]
             # print(f' Daily Cases {india_data_preds.DailyConfirmed.index[i+1]} = Total Cases{india_data_preds.TotalConfirmed.index[i+1]} - Total Cases {india_data_preds.TotalConfirmed.index[i]}')
             india_data_preds.DailyConfirmed.iloc[i + 1] = india_data_preds.TotalConfirmed.iloc[i + 1] - \
                                                           india_data_preds.TotalConfirmed.iloc[i]
@@ -923,12 +927,14 @@ def forecast_cases_growth_ratio(india_data, preds_gr):
 
     for res in india_DailyConfirmedValidation.columns[1:]:
         scores = {}
-        scores['Model'] = res.split("DailyConfirmed")[0]+'GR'
+        scores['Model'] = res.split("DailyConfirmed")[0] + 'GR'
         scores['R^2'] = round(
             r2_score(india_DailyConfirmedValidation['ActualCases'], india_DailyConfirmedValidation[res]), 4)
-        scores['MAE'] = round(
-            mean_absolute_error(india_DailyConfirmedValidation['ActualCases'], india_DailyConfirmedValidation[res]), 4)
-
+        scores['MAPE'] = round(
+            mean_absolute_percentage_error(india_DailyConfirmedValidation['ActualCases'], india_DailyConfirmedValidation[res]), 4)
+        scores['RMSE'] = round(
+            mean_squared_error(india_DailyConfirmedValidation['ActualCases'],
+                                           india_DailyConfirmedValidation[res], squared=False), 4)
         eval_metrics.append(scores)
 
     ### Figures
@@ -975,3 +981,42 @@ def forecast_cases_growth_ratio(india_data, preds_gr):
     )
     fig.update_xaxes(title_text="")
     return fig, eval_metrics
+
+
+def static_forecast_plots(india_data):
+    """
+    Returns all the static forecasting plots - logistic curve, growth factor, growth ratio, growth ratio cases fits.
+    """
+    x_data = np.arange(len(india_data['TotalConfirmed']))
+
+    y_data = india_data['TotalConfirmed'].values
+
+    # forecast for logistic curve fit
+    figure_log_curve, score_sigmoid_fit = forecast_curve_fit(india_data, x_data, y_data)
+
+    # Dict with validation metrics for logistic curve
+    # time delta since start of series
+    date_inflection = (
+            india_data.index.min() + pd.Timedelta(days=int(score_sigmoid_fit['params']['x0']))).date().strftime(
+        '%d-%m-%Y')
+    # required structure (List of dicts with each dict being a row) [{}, {}]
+    log_fit_metrics = [{'Model': 'Logistic Curve Fit', 'R^2': round(score_sigmoid_fit['R^2'], 4),
+                        'MAPE': round(score_sigmoid_fit['MAPE'], 4),
+                        'RMSE': round(score_sigmoid_fit['RMSE'], 4),
+                        'L': int(score_sigmoid_fit['params']['L']), 'x0': date_inflection}]
+
+    # forecasts for growth factor
+    figure_forecast_gf, score_gf_fit, eval_metrics_gf = forecast_growth_factor(india_data)
+
+    # plots for growth ratio
+
+    fig_gr = india_growth_ratio(india_data)
+
+    # forecasts for growth ratio
+
+    figure_forecast_gr, eval_metrics_gr, preds_gr = forecast_growth_ratio(india_data)
+
+    figure_forecast_cases_gr, eval_metrics_cases_gr = forecast_cases_growth_ratio(india_data, preds_gr)
+
+    return figure_log_curve, log_fit_metrics, figure_forecast_gf, \
+           eval_metrics_gf, fig_gr, figure_forecast_gr, eval_metrics_gr, figure_forecast_cases_gr, eval_metrics_cases_gr
