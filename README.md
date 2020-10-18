@@ -1,5 +1,8 @@
 
 # Covid 19 : India Analysis and Forecasting
+
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/e62ad3fa26fa4022b474ea3a22bc533a)](https://app.codacy.com/gh/DnanaDev/Covid19-India-Analysis-and-Forecasting?utm_source=github.com&utm_medium=referral&utm_content=DnanaDev/Covid19-India-Analysis-and-Forecasting&utm_campaign=Badge_Grade)
+
 <p>This is an end-end data science project that fetches the daily updated data released about the spread of the virus, and performs exploratory data analysis, visualisations and predictive modelling on the data. 
     It calculates and visualizes the growth factor, growth ratio of the virus and draws insights from it. These are used as features and the spread of the virus is modelled using Ridge Regression.</p>
     
