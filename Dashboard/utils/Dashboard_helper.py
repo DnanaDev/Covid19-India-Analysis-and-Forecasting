@@ -753,33 +753,44 @@ def india_growth_ratio(india_data):
     return fig
 
 
-def forecast_growth_ratio(india_data):
+def forecast_growth_ratio(india_data_total_confirmed):
     # Creating Growth Ratio Features using class.
     trf = GrowthRatioFeatures(num_lagged_feats=7, num_diff_feats=0, date_feats=True, glm_bounds=True)
 
     ### DATA - FOR REGRESSION MODELS
-    x, y = trf.transform(india_data.TotalConfirmed[41:])
-    x_train, x_test, y_train, y_test = train_test_split_gr(x, y, validation_days=30)
+
+    # splitting before creating growth ratio features
+    train = india_data_total_confirmed[:-38].copy()
+    # for 30 days validation, creation of 7 lag feature  will need to drop 8 samples
+    test = india_data_total_confirmed[-38:].copy()
+
+    x_train, y_train = trf.fit_transform(train)
+    index = x_train.isna().sum().max()
+    x_train = x_train[index:]
+    y_train = y_train[index:].values.ravel()
+
+    x_test, y_test = trf.fit_transform(test)
+    index = x_test.isna().sum().max()
+    x_test = x_test[index:]
+    y_test = y_test[index:].values.ravel()
+
     # perform ADF test
-    # if perf_adf(y)[1] < 0.05:
+    #if perf_adf(y_train)[1] < 0.05:
     #    print('Stationary Series')
 
-    # DATA - FOR AR(7) MODEL
-    trf_ar = GrowthRatioFeatures(num_lagged_feats=7, num_diff_feats=0, date_feats=False, glm_bounds=True)
+    # DATA - FOR AR(7) MODEL (excluding date features)
 
-    x_ar, y_ar = trf_ar.transform(india_data.TotalConfirmed[41:])
-    x_train_ar, x_test_ar, y_train_ar, y_test_ar = train_test_split_gr(x_ar, y_ar, validation_days=30)
-    # perform ADF test
-    # if perf_adf(y_ar)[1] < 0.05:
-    #    print('Stationary Series')
+    x_train_ar = x_train.iloc[:, :-4].copy()
+    x_test_ar = x_test.iloc[:, :-4].copy()
 
     #### MODELS ###
 
     reg_models = RegressionModelsGrowthRatio(recursive_forecast=True)
-    reg_models.fit(x_train, y_train, x_train_ar, y_train_ar)
+    reg_models.fit(x_train, y_train, x_train_ar, y_train)
 
     # predictions for validation set
     preds_valid = reg_models.predict(x_test, x_test_ar).copy()
+
     # Evaluation metrics for the models
     eval_metrics = []
     for res in preds_valid.keys():
@@ -796,11 +807,19 @@ def forecast_growth_ratio(india_data):
 
     # Predictions - over entire dataset.
     reg_models.recursive_forecast = False
+    x = pd.concat((x_train, x_test))
+    x_ar = x.iloc[:, :-4].copy()
     preds = reg_models.predict(x.dropna(), x_ar.dropna()).copy()
+
+    # saving those dates missing from whole set and adding as rangebreaks to figures
+    dt_all = pd.date_range(start=x.index[0],
+                           end=x.index[-1],
+                           freq='D')
+    dt_breaks = [d for d in dt_all if d not in x.index]
 
     # add trueGR to dict (back in actual scale)
     preds['TrueGR'] = np.concatenate((y_train, y_test)) + 1
-    # Save the date-time index.
+    # Save the date-time index.(Discontinuous)
     preds['index'] = x.dropna().index
 
     ### FIGURES ###
@@ -880,6 +899,9 @@ def forecast_growth_ratio(india_data):
             r=50,
             pad=1
         ), )
+    # Remove missing dates
+    fig.update_xaxes(rangebreaks=[dict(values=dt_breaks)])
+
     # Axis Titles
     fig.update_yaxes(title_text="Growth Ratio", row=1, col=1)
 
@@ -909,9 +931,11 @@ def forecast_cases_growth_ratio(india_data, preds_gr):
     # iterating over DF and multiplying (i-1) days totalconf * predicted growth ratio for next day (i)= toatal conf day (i)
 
     for model in columns_key[:-1]:
+        # copying first value from true cases (C_n)
+        india_data_preds.TotalConfirmed.iloc[-validation_days] = india_data.TotalConfirmed.iloc[-validation_days]
         for i in range(-validation_days, 0):
             # print(f' Total Cases {india_data_preds.index[i+1]} = Total Cases{india_data.TotalConfirmed.index[i]} * GR {india_data_preds[model].index[i+1]}')
-            india_data_preds.TotalConfirmed.iloc[i + 1] = india_data.TotalConfirmed.iloc[i] * \
+            india_data_preds.TotalConfirmed.iloc[i + 1] = india_data_preds.TotalConfirmed.iloc[i] * \
                                                           india_data_preds[model].iloc[i + 1]
             # print(f' Daily Cases {india_data_preds.DailyConfirmed.index[i+1]} = Total Cases{india_data_preds.TotalConfirmed.index[i+1]} - Total Cases {india_data_preds.TotalConfirmed.index[i]}')
             india_data_preds.DailyConfirmed.iloc[i + 1] = india_data_preds.TotalConfirmed.iloc[i + 1] - \
@@ -1014,7 +1038,7 @@ def static_forecast_plots(india_data):
 
     # forecasts for growth ratio
 
-    figure_forecast_gr, eval_metrics_gr, preds_gr = forecast_growth_ratio(india_data)
+    figure_forecast_gr, eval_metrics_gr, preds_gr = forecast_growth_ratio(india_data.TotalConfirmed[41:])
 
     figure_forecast_cases_gr, eval_metrics_cases_gr = forecast_cases_growth_ratio(india_data, preds_gr)
 

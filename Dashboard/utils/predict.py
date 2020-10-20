@@ -241,7 +241,7 @@ class GrowthRatioFeatures(BaseEstimator, TransformerMixin):
     Date Feats - used to create date feats like month, day, dayofweek to help encode seasonality.
     """
 
-    def __init__(self, num_lagged_feats=7, num_diff_feats=1, date_feats=True, glm_bounds=True):
+    def __init__(self, num_lagged_feats=7, num_diff_feats=0, date_feats=True, glm_bounds=True):
         self.num_lagged_feats_ = num_lagged_feats
         self.num_diff_feats_ = num_diff_feats
         self.date_feats_ = date_feats
@@ -276,7 +276,7 @@ class GrowthRatioFeatures(BaseEstimator, TransformerMixin):
             self.X['month'] = self.X.index.month
             self.X['day'] = self.X.index.day
             self.X['day_week'] = self.X.index.dayofweek
-            self.X[f'Days_since_{self.X.index.date.min()}'] = np.arange(len(self.X.index.tolist()))
+            self.X['Year'] = self.X.index.year
 
             # creating differenced features
             # check to see if lagged features exist and num of diff features less than lagged feats.

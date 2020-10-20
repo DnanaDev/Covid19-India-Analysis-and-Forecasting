@@ -483,12 +483,12 @@ def serve_layout():
 
                   )], style={'margin-left': '25%', 'margin-right': '25%'}),
 
-                  """, html.Br(),
-                          html.B('Data Sources : '),
-                          html.A('Daily Case Statistics: covid19india.org API', href='https://github.com/covid19india/api'),
-                          html.Br(),
-                          html.A('Daily ICMR Testing Data: Data Meet', href='https://github.com/datameet/covid19')
-                          """
+                  #""", html.Br(),
+                  #        html.B('Data Sources : '),
+                  #        html.A('Daily Case Statistics: covid19india.org API', href='https://github.com/covid19india/api'),
+                  #        html.Br(),
+                  #        html.A('Daily ICMR Testing Data: Data Meet', href='https://github.com/datameet/covid19')
+                  #        """
                   ## TO DO
 
                   ## Finally Using Growth Ratio and Factor as features to final Ridge Regression model.
@@ -552,4 +552,4 @@ def fetch_dynamic_forecast_plots(value_gf):
 
 
 if __name__ == '__main__':
-    app.run_server(host='localhost', port=8080, debug=True)
+    app.run_server(host='0.0.0.0', port=8080, debug=False)
