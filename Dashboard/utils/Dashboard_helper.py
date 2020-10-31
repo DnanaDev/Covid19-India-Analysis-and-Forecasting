@@ -8,8 +8,11 @@ import json
 from urllib.request import urlopen
 import datetime
 from .predict import SigmoidCurveFit, growth_factor_features, RegressionModelsGrowthFactor, TimeSeriesGrowthFactor, \
-    GrowthRatioFeatures, perf_adf, train_test_split_gr, RegressionModelsGrowthRatio, mean_absolute_percentage_error
-from sklearn.metrics import mean_absolute_error, r2_score, mean_squared_error
+    GrowthRatioFeatures, train_test_split_gr, RegressionModelsGrowthRatio, mean_absolute_percentage_error, \
+    TimeFeatures, RegressionModelsCases
+from sklearn.metrics import  r2_score, mean_squared_error
+from sklearn.utils._testing import ignore_warnings
+from sklearn.exceptions import ConvergenceWarning
 
 # Suppressing statsmodels warnings
 import warnings
@@ -334,7 +337,7 @@ def india_test_plot(india_test, value='Daily Testing and Cases'):
 
         fig_test = india_test_diff[50:].plot(title='Daily Testing and '
                                                    'New Cases')
-        fig_test.update_layout(yaxis=dict(title='# of Test Samples Collected, Total Confirmed Cases '),
+        fig_test.update_layout(yaxis=dict(title='No. of Test Samples Collected, Total Confirmed Cases '),
                                legend_title_text='', legend=dict(orientation="h",
                                                                  yanchor="bottom",
                                                                  y=1.02, xanchor="right", x=1),
@@ -345,7 +348,7 @@ def india_test_plot(india_test, value='Daily Testing and Cases'):
 
         fig_test = india_test_diff[50:].plot(title='Daily Testing and '
                                                    'New Cases 7-Day MA')
-        fig_test.update_layout(yaxis=dict(title='# of Test Samples Collected, Total Confirmed Cases'),
+        fig_test.update_layout(yaxis=dict(title='No. of Test Samples Collected, Total Confirmed Cases'),
                                legend_title_text='', legend=dict(orientation="h",
                                                                  yanchor="bottom",
                                                                  y=1.02, xanchor="right", x=1),
@@ -394,7 +397,7 @@ def national_growth_factor(india_data, value='daily'):
     if value == 'Daily Growth Factor' or 'Comparison of Growth Factor':
         # overall growth factor
         fig = india_growth_factor.plot(
-            title='India : Growth Factor Since Widespread Testing ')
+            title='India : Growth Factor Since Widespread Testing')
 
         # mean growth Factor
         fig.add_scatter(y=[india_growth_factor.mean(), india_growth_factor.mean()],
@@ -437,13 +440,14 @@ def national_growth_factor(india_data, value='daily'):
         ), legend_title_text='',
             margin=dict(
                 b=20,
+                t=20,
                 pad=1
             ))
         fig.update_yaxes(title_text="Growth Factor")
         fig.update_xaxes(title_text="Date")
     if value == 'Growth Factor Weekly Moving Average':
         x_ma = india_growth_factor[2:].rolling(window=7).mean()[6:]
-        fig = x_ma.plot(title='India Weekly Moving Average Growth Factor Since 2020-03-11 (Widespread Testing) ')
+        fig = x_ma.plot(title='India : Growth Factor Since Widespread Testing')
         # Updating legend location
         fig.update_layout(legend=dict(
             orientation="h",
@@ -454,6 +458,7 @@ def national_growth_factor(india_data, value='daily'):
         ), legend_title_text='',
             margin=dict(
                 b=20,
+                t=20,
                 pad=1
             ),
         )
@@ -466,6 +471,17 @@ def national_growth_factor(india_data, value='daily'):
                             dash="dashdot",
                         ),
                         )
+        # mean growth factor
+        fig.add_scatter(y=[india_growth_factor.median(), india_growth_factor.median()],
+                        x=[x_ma.index[0], x_ma.index[-1]], mode='lines',
+                        name=f'Median Growth Factor = {india_growth_factor.median():.4f}',
+                        line=dict(
+                            color="lightseagreen",
+                            width=4,
+                            dash="dashdot",
+                        ),
+                        )
+
         fig.update_yaxes(title_text="Growth Factor")
         fig.update_xaxes(title_text="Date")
 
@@ -521,13 +537,21 @@ def state_plots(state_series, state_name):
     fig.update_yaxes(title_text="Growth Factor", row=2, col=2)
 
     # figure specs.
-    fig.update_layout(height=700, showlegend=True,
+    fig.update_layout(height=600, showlegend=True,
                       title_text=f"{state_name} Statistics", legend=dict(orientation="h",
                                                                          yanchor="bottom",
-                                                                         y=-0.1,
+                                                                         y=1.05,
                                                                          xanchor="right",
                                                                          x=1
-                                                                         ))
+                                                                         ),
+                      margin=dict(
+                          b=15,
+                          t=50,
+                          l=20,
+                          r=20,
+                          pad=.1
+                      )
+                      )
 
     return fig
 
@@ -686,7 +710,7 @@ def forecast_growth_factor(india_data):
                     line=dict(
                         color="crimson",
                         dash="dashdot",
-                    ))
+                    ), visible="legendonly")
     fig.add_scatter(x=x_test.index, y=preds['Last_Month_Mean'], name='Mean Last Month',
                     line=dict(
                         color="lightseagreen",
@@ -697,7 +721,7 @@ def forecast_growth_factor(india_data):
                     line=dict(
                         color="DarkViolet",
                         dash="dashdot",
-                    )
+                    ), visible="legendonly"
                     )
 
     fig.add_scatter(x=x_test.index, y=preds['SARIMA'], name='SARIMA',
@@ -713,10 +737,10 @@ def forecast_growth_factor(india_data):
         y=1,
         xanchor="right",
         x=1
-    ), legend_title_text='',
+    ), legend_title_text='* Click to toggle visibility: ',
         margin=dict(
             b=0,
-            t=40,
+            t=75,
             l=50,
             r=50,
             pad=1
@@ -775,7 +799,7 @@ def forecast_growth_ratio(india_data_total_confirmed):
     y_test = y_test[index:].values.ravel()
 
     # perform ADF test
-    #if perf_adf(y_train)[1] < 0.05:
+    # if perf_adf(y_train)[1] < 0.05:
     #    print('Stationary Series')
 
     # DATA - FOR AR(7) MODEL (excluding date features)
@@ -828,7 +852,8 @@ def forecast_growth_ratio(india_data_total_confirmed):
                         subplot_titles=("Models fit to Growth Ratio",
                                         "Validation Set Predictions for Growth Ratio"),
                         column_widths=[0.5, 0.5],
-                        horizontal_spacing=0.06)
+                        horizontal_spacing=0.06,
+                        vertical_spacing=0.05)
 
     fig_1 = go.Figure()
 
@@ -888,16 +913,16 @@ def forecast_growth_ratio(india_data_total_confirmed):
     ], legend=dict(
         orientation="h",
         yanchor="bottom",
-        y=1.05,
-        xanchor="right",
-        x=1
-    ), legend_title_text='',
+        y=-.15,
+        xanchor="left",
+        x=0
+    ), legend_title_text='*click to toggle:',
         margin=dict(
-            b=15,
-            t=5,
+            b=50,
+            t=25,
             l=50,
             r=50,
-            pad=1
+            pad=.1
         ), )
     # Remove missing dates
     fig.update_xaxes(rangebreaks=[dict(values=dt_breaks)])
@@ -955,10 +980,11 @@ def forecast_cases_growth_ratio(india_data, preds_gr):
         scores['R^2'] = round(
             r2_score(india_DailyConfirmedValidation['ActualCases'], india_DailyConfirmedValidation[res]), 4)
         scores['MAPE'] = round(
-            mean_absolute_percentage_error(india_DailyConfirmedValidation['ActualCases'], india_DailyConfirmedValidation[res]), 4)
+            mean_absolute_percentage_error(india_DailyConfirmedValidation['ActualCases'],
+                                           india_DailyConfirmedValidation[res]), 4)
         scores['RMSE'] = round(
             mean_squared_error(india_DailyConfirmedValidation['ActualCases'],
-                                           india_DailyConfirmedValidation[res], squared=False), 4)
+                               india_DailyConfirmedValidation[res], squared=False), 4)
         eval_metrics.append(scores)
 
     ### Figures
@@ -1044,3 +1070,115 @@ def static_forecast_plots(india_data):
 
     return figure_log_curve, log_fit_metrics, figure_forecast_gf, \
            eval_metrics_gf, fig_gr, figure_forecast_gr, eval_metrics_gr, figure_forecast_cases_gr, eval_metrics_cases_gr
+
+
+@ignore_warnings(category=ConvergenceWarning)
+def forecast_cases(india_data_daily_confirmed, num_lags, alpha, poly_feats):
+    # Data Transformer
+    trf = TimeFeatures(num_lagged_feats=num_lags, num_diff_feats=0, date_feats=True, glm_bounds=False)
+
+    # FOR REGRESSION MODELS
+    x, y = trf.transform(india_data_daily_confirmed)
+    x_train, x_test, y_train, y_test = train_test_split_gr(x, y, validation_days=30)
+
+    # instantiate models
+    pipe_lasso = RegressionModelsCases(recursive_forecast=True)
+    pipe_lasso.fit(x_train, y_train, alpha=alpha, poly_feats=poly_feats)
+
+    # Preds for validation set
+    preds_valid = pipe_lasso.predict(x_test).copy()
+
+    # feat importance dict
+    feat_imp = pipe_lasso.feat_imp
+
+    # Time-Series models
+    x_train_ts = india_data_daily_confirmed[:-30].copy()
+
+    model_time_series = TimeSeriesGrowthFactor()
+
+    model_time_series.fit(x_train_ts, order=(1, 1, 0),
+                          seasonal_order=(0, 1, 1, 7))
+
+    preds_valid_ts = model_time_series.predict(len(x_train_ts),
+                                               len(x_train_ts) + 29)
+
+    # add predictions of time-series models to dict
+    preds_valid['Sarima'] = preds_valid_ts.values
+    # Evaluation metrics for the models
+    eval_metrics = []
+    for res in preds_valid.keys():
+        scores = {}
+        scores['Model'] = res
+        scores['R^2'] = round(r2_score(y_test, preds_valid[res] - 1), 7)
+        scores['MAPE'] = round(mean_absolute_percentage_error(y_test, preds_valid[res] - 1), 7)
+        scores['RMSE'] = round(mean_squared_error(y_test, preds_valid[res] - 1, squared=False), 7)
+
+        eval_metrics.append(scores)
+
+    preds_valid['TrueCases'] = y_test
+    preds_valid['index'] = x_test.index
+
+    # Figures for different predictors.
+    temp = pd.DataFrame(index=x_test.index, data=y_test, columns=['Actual'])
+
+    fig = temp.plot(
+        title='Validation Set predictions for Confirmed Cases', labels=dict(index=" ", value="Number of Cases"))
+
+    fig.update_traces(line=dict(width=4))
+
+    fig.add_scatter(x=x_test.index, y=preds_valid['Lasso_reg'], name='Lasso Regression',
+                    line=dict(
+                        color="crimson",
+                        dash="dashdot",
+                    ))
+
+    fig.add_scatter(x=x_test.index, y=preds_valid['Sarima'], name='SARIMA',
+                    line=dict(
+                        color="lightseagreen",
+                        dash="dashdot",
+                    ))
+    fig.update_layout(legend=dict(
+        orientation="h",
+        yanchor="bottom",
+        y=1,
+        xanchor="right",
+        x=1
+    ), legend_title_text='',
+        margin=dict(
+            b=0,
+            t=75,
+            l=25,
+            r=0,
+            pad=0
+        ),
+    )
+    fig.update_xaxes(title_text="")
+
+    # Figure for feature importance
+
+    # Possible to have less than 10 feats when lag,poly =1. avoid repeat
+
+    if len(feat_imp) >= 10:
+        # index
+        y_ind = [d['index'] for d in feat_imp[:5]] + [d['index'] for d in feat_imp[-5:]]
+        # values
+        x_val = [d['Feature_imp'] for d in feat_imp[:5]] + [d['Feature_imp'] for d in feat_imp[-5:]]
+    else:
+        y_ind = [d['index'] for d in feat_imp]
+        x_val = [d['Feature_imp'] for d in feat_imp]
+
+    fig_1 = px.bar(orientation='h',
+                   y=y_ind,
+                   x=x_val,
+                   title="Lasso Regression feature importance")
+
+    fig_1.update_xaxes(title_text="Weight on Prediction")
+    fig_1.update_yaxes(title_text="Features", tickangle=-45)
+    fig_1.update_layout(showlegend=False, margin=dict(
+        b=50,
+        t=50,
+        l=50,
+        r=25,
+        pad=.1))
+
+    return fig, eval_metrics, fig_1

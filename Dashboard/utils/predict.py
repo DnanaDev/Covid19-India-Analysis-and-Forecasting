@@ -4,7 +4,7 @@ All the machine learning, statistical models for the Covid Forecasting Dashboard
 from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin
 from sklearn.utils.validation import check_X_y, check_is_fitted
 from sklearn.exceptions import NotFittedError
-from sklearn.linear_model import LinearRegression, Ridge, PoissonRegressor, GammaRegressor
+from sklearn.linear_model import LinearRegression, Ridge, PoissonRegressor, GammaRegressor, Lasso
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 from sklearn.pipeline import Pipeline
 import numpy as np
@@ -90,7 +90,7 @@ def growth_factor_features(gf_df):
     gf_df['day'] = gf_df.index.day
     gf_df['day_week'] = gf_df.index.dayofweek
     # differenced features
-    #gf_df['Lag_1days_diff'] = gf_df['Lag_1days'].diff(1)
+    # gf_df['Lag_1days_diff'] = gf_df['Lag_1days'].diff(1)
     return gf_df
 
 
@@ -192,13 +192,13 @@ class TimeSeriesGrowthFactor():
         # Private Attribute To check if time-series is stationary and fitted.
         self.__valid = None
 
-    def fit(self, ts):
+    def fit(self, ts, order=(1, 1, 1), seasonal_order=(0, 1, 1, 7)):
         self.Y = ts
 
-        # taking moving average to remove seasonality.
-        self.__Y = self.Y.rolling(window=7).mean()[6:]
+        # taking moving average to smooth seasonality.
+        self.__Y = self.Y.diff(periods=7).dropna()
         # removing trend
-        self.__Y = self.__Y.diff(periods=1)[1:]
+        self.__Y = self.__Y.diff(periods=1).dropna()
         # performing ADF test
         self.adf_results = stattools.adfuller(self.__Y, maxlag=None, autolag='AIC')
 
@@ -210,7 +210,7 @@ class TimeSeriesGrowthFactor():
                 'Can\'t Fit estimator. Time-Series likely not stationary with current SARIMA parameters')
 
         # setup and fit model if we don't error out.
-        self.model = SARIMAX(self.Y, trend='n', order=(1, 1, 1), seasonal_order=(0, 1, 1, 7))
+        self.model = SARIMAX(self.Y, trend='n', order=order, seasonal_order=seasonal_order)
 
         # change status for stationary and fit.
         self.__valid = 1
@@ -441,5 +441,148 @@ class RegressionModelsGrowthRatio():
             self.results['ARModel'] += 1
             self.results['PoissonReg'] += 1
             self.results['GammaReg'] += 1
+
+        return self.results
+
+
+class TimeFeatures(BaseEstimator, TransformerMixin):
+    """Data transformation for easily creating Growth ratio features from the total confirmed cases.
+    Total confirmed is a date indexed series with total confirmed covid cases. If GLM bounds is true,
+    shifts growth ratio into the correct range [0,+inf] by subtracting 1.
+    First calculates the growth ratio. Performs the following transformations.
+    Lagged Feats - Lag of growth ratio for t days.
+    Diffed Feats - 1st Differed growth ratio of t lags. Useful to encode trend information.
+    Date Feats - used to create date feats like month, day, dayofweek to help encode seasonality.
+    """
+
+    def __init__(self, num_lagged_feats=7, num_diff_feats=0, date_feats=True, glm_bounds=True):
+        self.num_lagged_feats_ = num_lagged_feats
+        self.num_diff_feats_ = num_diff_feats
+        self.date_feats_ = date_feats
+        self.glm_bounds_ = glm_bounds
+        self.y = None
+        self.X = None
+
+    def fit(self, X, y=None):
+        # nothing to calculate for a transformation ex, calculating mean of data etc.
+        # could add gr calculation here.
+        return self
+
+    def transform(self, X, y=None):
+        # calculating growth ratio (target, y)
+        self.y = X
+        self.y = self.y.to_frame(name='OGFeat')
+        self.y.dropna(inplace=True)
+        # subtracting 1 to get into right bounds.
+        if self.glm_bounds_:
+            self.y = self.y - 1
+
+        # creating features (featres, x) - important to create a copy of target here, otherwise overwrites y
+
+        self.X = self.y.copy()
+
+        # creating lagged features
+        for i in range(1, self.num_lagged_feats_ + 1):
+            self.X[f'Lag_{i}days'] = self.y.shift(i)
+
+        # creating date features
+        if self.date_feats_:
+            self.X['month'] = self.X.index.month
+            self.X['day'] = self.X.index.day
+            self.X['day_week'] = self.X.index.dayofweek
+
+            # creating differenced features
+            # check to see if lagged features exist and num of diff features less than lagged feats.
+            if (self.num_lagged_feats_ >= 1) & (self.num_lagged_feats_ >= self.num_diff_feats_):
+
+                for i in range(1, self.num_diff_feats_ + 1):
+                    self.X[f'Lag_{i}days_diff'] = self.X[f'Lag_{i}days'].diff(1)
+            else:
+                print('Number of diffed lag features requested higher than number of lagged features')
+
+        # dropping growth ratio(target) from x
+        self.X.drop('OGFeat', axis=1, inplace=True)
+
+        # if no features generated, pass just the days since feature as feature(can break)
+        if self.X.shape[1] == 0:
+            self.X[f'Days_since_{self.X.index.date.min()}'] = np.arange(len(self.X.index.tolist()))
+
+        return self.X, self.y
+
+
+class RegressionModelsCases():
+    """ Class to return predictions for ConfirmedCases by multiple
+    estimators. Feature scaling done, hardcoded hyperparameters.
+    No parameter, estimator validation done. Returns a dictionary with results
+    for all the estimators. Allows Recursive multi-step forecast.
+    """
+
+    def __init__(self, recursive_forecast=True):
+
+        # optional parameters
+        self.recursive_forecast = recursive_forecast
+        # dictionary for results.
+        self.results = {}
+        # initialising models - lasso reg.
+        self.pipe_lasso = Pipeline(
+            [('poly', PolynomialFeatures(degree=1, include_bias=False)), ('scale', StandardScaler()),
+             ('lasso', Lasso(alpha=4500, max_iter=1000))])
+        # data
+        self.x = None
+        self.y = None
+        # store feature importance
+        self.feat_imp = None
+
+    def fit(self, x, y, alpha=4500, poly_feats=1):
+        self.x = x
+        self.y = y
+
+        # For callback to update model fit with new parameters
+        self.pipe_lasso['lasso'].alpha = alpha
+        self.pipe_lasso['poly'].degree = poly_feats
+
+        # fitting the regression models
+        self.pipe_lasso.fit(x, y)
+
+        # Store feat imp. in a dict
+        self.feat_imp = pd.DataFrame(index=self.pipe_lasso['poly'].get_feature_names(self.x.columns),
+                                     data=self.pipe_lasso['lasso'].coef_,
+                                     columns=['Feature_imp']).reset_index()
+
+        self.feat_imp = self.feat_imp.sort_values(by='Feature_imp', ascending=False).to_dict(orient='records')
+
+    def predict(self, X):
+        # check if estimators fit - this isn't entirely correct, One could change x to a string
+
+        if self.x is None or self.y is None:
+            raise NotFittedError("Estimator instance is not fitted yet. Call 'fit'")
+
+        # Recursive Multi-Step Predictions if Lag features used
+
+        if self.recursive_forecast:
+            # print('Lagged features - multi-step forecast')
+            self.x_test_lasso = X.astype(np.float64).copy()
+
+            self.pred_list_lasso = []
+
+            # Recursively predicting next time-step and replacing back into test data
+            for i in np.arange(X.shape[0]):
+                self.preds_lasso = self.pipe_lasso.predict(self.x_test_lasso.iloc[0, :].values.reshape(1, -1))
+
+                # saving forecast
+                self.pred_list_lasso.append(self.preds_lasso)
+
+                # shift the lagged values in test DF by 1
+                self.x_test_lasso = self.x_test_lasso.shift(periods=-1)
+
+                # putting prediction back into first lag place for shifted df(day t+1)
+                self.x_test_lasso.iloc[0, 0] = self.preds_lasso
+
+            # saving predictions in Dict
+            self.results['Lasso_reg'] = np.array(self.pred_list_lasso).ravel()
+
+            # If no lag features used
+        elif not self.recursive_forecast:
+            self.results['Lasso_reg'] = self.pipe_lasso.predict(X)
 
         return self.results
