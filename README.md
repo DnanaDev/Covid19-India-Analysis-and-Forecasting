@@ -10,7 +10,7 @@ National/State-Wise Analysis            | Growth Factor/Ratio
 :-------------------------:|:-------------------------:
 ![Delhi](Graphs/state_stats.png)  |  ![Growth-factor](Graphs/growth_factor.png)
 **Cases Forecast** |(SARIMAX, Lasso Regression, Logistic-Fit, Growth-Ratio)
-![Cases-Fit](Graphs/Cases_forecast.png)
+|![Log-Fit](Graphs/logistic_fit.png)|![Cases-Fit](Graphs/Cases_forecast.png)
 
 ## Data Sources
 1. Daily Case Statistics: [covid19india.org API.](https://github.com/covid19india/api)
