@@ -6,11 +6,11 @@
 2. Analysis and Visualization [Notebook.](https://nbviewer.jupyter.org/github/DnanaDev/Covid19-India-Analysis-and-Forecasting/blob/master/COVID19_India_Analysis_Forecasting.ipynb)
 3. Data Ingestion [Script.](Data/india_API_data/Covid19_india_org_api.py)
 
-|  |  |
-| --- | --- |
-| **National/State-Wise Analysis** | ![Delhi](Graphs/state_stats.png) |
-|**Growth-Factor/Ratio**|![Log-Fit](Graphs/growth_factor.png)|
-|**Cases Forecast** (SARIMAX, Lasso Regresion, Logistic-Fit, Growth Ratio)|![Cases-Fit](Graphs/Cases_forecast.png)|
+National/State-Wise Analysis            | Growth Factor/Ratio
+:-------------------------:|:-------------------------:
+![Delhi](Graphs/state_stats.png)  |  ![Growth-factor](Graphs/growth_factor.png)
+**Cases Forecast** |(SARIMAX, Lasso Regression, Logistic-Fit, Growth-Ratio)
+![Cases-Fit](Graphs/Cases_forecast.png)
 
 ## Data Sources
 1. Daily Case Statistics: [covid19india.org API.](https://github.com/covid19india/api)

@@ -397,7 +397,7 @@ def national_growth_factor(india_data, value='daily'):
     if value == 'Daily Growth Factor' or 'Comparison of Growth Factor':
         # overall growth factor
         fig = india_growth_factor.plot(
-            title='India : Growth Factor Since Widespread Testing')
+            title='India : Growth Factor')
 
         # mean growth Factor
         fig.add_scatter(y=[india_growth_factor.mean(), india_growth_factor.mean()],
@@ -447,7 +447,7 @@ def national_growth_factor(india_data, value='daily'):
         fig.update_xaxes(title_text="Date")
     if value == 'Growth Factor Weekly Moving Average':
         x_ma = india_growth_factor[2:].rolling(window=7).mean()[6:]
-        fig = x_ma.plot(title='India : Growth Factor Since Widespread Testing')
+        fig = x_ma.plot(title='India : Growth Factor')
         # Updating legend location
         fig.update_layout(legend=dict(
             orientation="h",
