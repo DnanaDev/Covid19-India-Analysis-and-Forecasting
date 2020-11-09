@@ -572,7 +572,7 @@ def serve_layout():
         axis_latex_script,
         ###### important for latex ######
         mathjax_script,
-    ])
+    ], style={'margin-left': '25px', 'margin-right': '25px'})
 
 
 # Define app layout to the actual function instance and not a call. This is for live-Updating
