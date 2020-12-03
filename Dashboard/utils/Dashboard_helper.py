@@ -13,6 +13,7 @@ from .predict import SigmoidCurveFit, growth_factor_features, RegressionModelsGr
 from sklearn.metrics import  r2_score, mean_squared_error
 from sklearn.utils._testing import ignore_warnings
 from sklearn.exceptions import ConvergenceWarning
+from .validation import validate_monotonicity
 
 # Suppressing statsmodels warnings
 import warnings
@@ -91,6 +92,7 @@ def make_dataframe(save=False):
 
 def get_test_dataframe():
     """Gets ICMR covid Testing samples data from datameet dataset.
+    Has Monotonicity validation test as some values are incorrectly entered in source.
     Args:
     Returns:
     Dataframe with Date, Number of samples collected on that day.
@@ -121,6 +123,9 @@ def get_test_dataframe():
     # Removing duplicate indexes
     testing_data = testing_data.loc[~testing_data.index.duplicated(keep='last')]
     testing_data = testing_data.astype('float')
+
+    # validate and Fix Monotonicity errors at source by interpolation.
+    testing_data['TestingSamples'] = validate_monotonicity(testing_data['TestingSamples'])
 
     return testing_data
 

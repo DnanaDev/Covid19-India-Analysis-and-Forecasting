@@ -362,7 +362,7 @@ class RegressionModelsGrowthRatio():
         self.y = None
         self.x_ar = None
         self.y_ar = None
-        # dictonary for results.
+        # dictionary for results.
         self.results = {}
 
     def fit(self, x, y, x_ar, y_ar):
