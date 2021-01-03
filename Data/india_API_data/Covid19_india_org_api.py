@@ -74,7 +74,7 @@ def make_dataframe(save=False):
     total_dec = list_cases_stat(data, 'totaldeceased')
     total_rec = list_cases_stat(data, 'totalrecovered')
 
-    list_dates = list_cases_stat(data, 'date')
+    list_dates = list_cases_stat(data, 'dateymd')
 
     # Converting Dates to 'datetime'
     new_date = []
@@ -82,7 +82,7 @@ def make_dataframe(save=False):
     for date in list_dates:
         # if entry is not of valid format continue to next
         try:
-            new_date.append(datetime.datetime.strptime(date + ' 2020', '%d %B %Y'))
+            new_date.append(datetime.datetime.strptime(date,'%Y-%m-%d'))
         except ValueError:
             continue
 

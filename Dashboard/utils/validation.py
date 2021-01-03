@@ -5,9 +5,31 @@ import numpy as np
 import pandas as pd
 
 
+def interpolate_missing(series):
+    """Fill Missing values and dates in discontinuous Time-Series by Linear interpolation.
+    For Cumulative Test Series.
+    Args:
+        series: pd.Dataframe/pd.Series
+    Returns:
+        series: pd.Dataframe/pd.Series
+    """
+    # reindex to fill in missing dates
+    series = series.reindex(index=pd.date_range(start=series.index.min(), end=series.index.max()))
+    series = series.interpolate(method='linear', axis=0)
+
+    return series
+
+
 def validate_monotonicity(series):
-    """Check and correct monotonicity of cumulative Testing samples series.
-    The source often has errors where incorrect numbers are entered. Causes the testing graph to go crazy."""
+    """
+    Check and correct monotonicity of cumulative Testing samples series.
+    The source often has errors where incorrect numbers are entered. Causes the testing graph to go crazy.
+    Args:
+        series: pd.Series
+
+    Returns:
+        series: pd.Series
+    """
     # if series isn't monotonic
     if not series.is_monotonic:
         # print('Warning: Series is not monotonic, check source.')

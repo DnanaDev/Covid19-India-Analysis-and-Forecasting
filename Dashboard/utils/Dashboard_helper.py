@@ -13,7 +13,7 @@ from .predict import SigmoidCurveFit, growth_factor_features, RegressionModelsGr
 from sklearn.metrics import  r2_score, mean_squared_error
 from sklearn.utils._testing import ignore_warnings
 from sklearn.exceptions import ConvergenceWarning
-from .validation import validate_monotonicity
+from .validation import validate_monotonicity, interpolate_missing
 
 # Suppressing statsmodels warnings
 import warnings
@@ -66,7 +66,7 @@ def make_dataframe(save=False):
     total_dec = list_cases_stat(data, 'totaldeceased')
     total_rec = list_cases_stat(data, 'totalrecovered')
 
-    list_dates = list_cases_stat(data, 'date')
+    list_dates = list_cases_stat(data, 'dateymd')
 
     # Converting Dates to 'datetime'
     new_date = []
@@ -74,7 +74,7 @@ def make_dataframe(save=False):
     for date in list_dates:
         # if entry is not of valid format continue to next
         try:
-            new_date.append(datetime.datetime.strptime(date + ' 2020', '%d %B %Y'))
+            new_date.append(datetime.datetime.strptime(date,'%Y-%m-%d'))
         except ValueError:
             continue
 
@@ -123,6 +123,9 @@ def get_test_dataframe():
     # Removing duplicate indexes
     testing_data = testing_data.loc[~testing_data.index.duplicated(keep='last')]
     testing_data = testing_data.astype('float')
+
+    # Interpolate Missing Values
+    testing_data = interpolate_missing(testing_data['TestingSamples']).to_frame()
 
     # validate and Fix Monotonicity errors at source by interpolation.
     testing_data['TestingSamples'] = validate_monotonicity(testing_data['TestingSamples'])
