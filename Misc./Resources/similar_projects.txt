@@ -1,0 +1,5 @@
+// Assistant Prof at UCLA Statistical Machine Learning
+
+http://web.cs.ucla.edu/~qgu/index.html
+
+// Has a plotly-Dash project, similar to mine. (See what you've been doing is useful. Just have to figure out and align the research goal.)

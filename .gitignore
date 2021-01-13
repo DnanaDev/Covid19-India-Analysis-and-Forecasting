@@ -4,3 +4,13 @@
 # Ignore Resources Folder
 /Resources
 /Research
+.idea/
+.ipynb_checkpoints/
+__pycache__/
+Backup/
+india_API_data/
+Data_Pipeline/.ipynb_checkpoints/
+Data_Pipeline/__pycache__/
+Misc./.ipynb_checkpoints/
+Misc./.idea/
+Misc./__pycache__/
