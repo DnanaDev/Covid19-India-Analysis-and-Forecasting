@@ -20,6 +20,20 @@ def interpolate_missing(series):
     return series
 
 
+def interpolate_duplicate(series):
+    """
+    Linearly interpolate Series. Used when data gets repeated/carried forward in place of marked missing.
+    see: Datameet Testing Samples Source.
+    Note: possible bug when values are legitimately duplicate.
+    For Cumulative Test Series.
+    """
+    # repeated values will have zero first difference
+    series.loc[series.diff(1) == 0] = np.nan
+    series = series.interpolate(method='linear', axis=0)
+
+    return series
+
+
 def validate_monotonicity(series):
     """
     Check and correct monotonicity of cumulative Testing samples series.

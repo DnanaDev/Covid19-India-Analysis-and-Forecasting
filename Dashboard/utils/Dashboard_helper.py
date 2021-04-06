@@ -13,7 +13,7 @@ from .predict import SigmoidCurveFit, growth_factor_features, RegressionModelsGr
 from sklearn.metrics import  r2_score, mean_squared_error
 from sklearn.utils._testing import ignore_warnings
 from sklearn.exceptions import ConvergenceWarning
-from .validation import validate_monotonicity, interpolate_missing
+from .validation import validate_monotonicity, interpolate_missing, interpolate_duplicate
 
 # Suppressing statsmodels warnings
 import warnings
@@ -126,7 +126,8 @@ def get_test_dataframe():
 
     # Interpolate Missing Values
     testing_data = interpolate_missing(testing_data['TestingSamples']).to_frame()
-
+    # Fix for no testing data, same totals being carried forward.(possible:bug)
+    testing_data = interpolate_duplicate(testing_data['TestingSamples']).to_frame()
     # validate and Fix Monotonicity errors at source by interpolation.
     testing_data['TestingSamples'] = validate_monotonicity(testing_data['TestingSamples'])
 
